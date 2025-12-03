@@ -7,7 +7,7 @@ module memory_tb;
 
   //DUT
   logic clk;
-  logic rst_en;
+  logic rst_n;
   logic write_enable;
   logic [31:0] address;
   logic [DATA_WIDTH-1:0] write_data;
@@ -15,7 +15,7 @@ module memory_tb;
 
   memory #(.WORDS(WORDS)) 
     dut(.clk(clk),
-        .rst_en(rst_en),
+        .rst_n(rst_n),
         .write_enable(write_enable),
         .address(address),
         .write_data(write_data),
@@ -34,12 +34,12 @@ module memory_tb;
   
   initial begin
     // test 1: reset 
-    rst_en = 0; //active low 
+    rst_n = 0; //active low 
     write_enable = 0;
     address = 0;
     write_data = 0;
     @(posedge clk);
-    rst_en = 1;
+    rst_n = 1;
     @(posedge clk);
 
     for(int i = 0; i < WORDS; i++) begin
