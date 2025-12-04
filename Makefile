@@ -19,6 +19,9 @@ run-%:
 # Build all testbenches
 all: $(TBS:%=build-%)
 
+clean-%:
+	rm -rf $(BUILD_DIR)/$*
+
 # Clean all build outputs
 clean:
 	rm -rf $(BUILD_DIR)/*
