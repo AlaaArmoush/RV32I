@@ -9,7 +9,7 @@ TBS = $(notdir $(basename $(wildcard $(TB_DIR)/*_tb.sv)))
 
 # Build rule: run original command, then move obj_dir
 build-%: $(SRC_DIR)/%.sv $(TB_DIR)/%_tb.sv
-		verilator --binary $(SRC_DIR)/$*.sv $(TB_DIR)/$*_tb.sv --top $*_tb -Wno-WIDTHTRUNC
+		verilator --binary $(SRC_DIR)/$*.sv $(TB_DIR)/$*_tb.sv --top $*_tb -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND
 	mkdir -p $(BUILD_DIR)/$*       # create per-testbench folder if needed
 	mv obj_dir $(BUILD_DIR)/$*/obj_dir
 
