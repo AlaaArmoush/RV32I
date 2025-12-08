@@ -2,7 +2,7 @@ module signextnd (
     // first 7 are opcode
     input logic [31:7] raw_src,
     // RISC-V have 5 immediate variants
-    input logic [ 3:0] imm_type,
+    input logic [ 2:0] imm_type,
 
     output logic [31:0] imm_produced
 );
@@ -28,6 +28,8 @@ module signextnd (
   end
 
 endmodule
+
+
 
 
 
