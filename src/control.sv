@@ -18,15 +18,17 @@ module control (
     case (op_code)
       // LW (I-type)
       7'b0000011: begin
-        imm_type  = 3'b000;
+        imm_type = 3'b000;
         mem_write = 1'b0;
         reg_write = 1'b1;
+        alu_op = 2'b00;
       end
 
       default: begin
-        imm_type  = 3'b000;
+        imm_type = 3'b000;
         mem_write = 1'b0;
         reg_write = 1'b0;
+        alu_op = 2'b00;
       end
     endcase
   end
