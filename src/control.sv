@@ -28,7 +28,7 @@ module control (
         imm_type = 3'b000;
         mem_write = 1'b0;
         reg_write = 1'b0;
-        alu_op = 2'b00;
+        alu_op = 2'b11;
       end
     endcase
   end
@@ -37,8 +37,8 @@ module control (
   always_comb begin : ALU_DECODER
     case (alu_op)
       // LW 
-      1'b00: alu_control = 3'b000;
-      default alu_control = 3'b111;
+      2'b00:   alu_control = 3'b000;
+      default: alu_control = 3'b111;
     endcase
   end
 

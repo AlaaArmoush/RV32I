@@ -12,6 +12,7 @@ module signextnd_tb;
 
   // Golden Model 
   function bit [31:0] calc_expected(bit [31:7] src, bit [3:0] type_code);
+    /* verilator lint_off WIDTHEXPAND */
     bit [31:0] expected_imm;
     // bit signed for automatic extension
     bit signed [11:0] i_imm;
@@ -50,6 +51,7 @@ module signextnd_tb;
       default: expected_imm = 32'b0;
     endcase
     return expected_imm;
+    /* verilator lint_on WIDTHEXPAND */
   endfunction
 
   function void check(bit [31:0] expected, bit [31:0] actual);
