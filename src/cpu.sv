@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+
 module cpu (
     input logic clk,
     input logic rst_n
@@ -12,7 +14,7 @@ module cpu (
 
   always @(posedge clk) begin
     if (rst_n == 0) begin
-      oc <= 32'b0;
+      pc <= 32'b0;
     end else begin
       pc <= pc_next;
     end
@@ -28,16 +30,16 @@ module cpu (
       .address(pc),
       .write_data(32'b0),
       .write_enable(1'b0),
-      .rst_n(1'1),
+      .rst_n(1'b1),
       .read_data(instruction)
   );
 
 
   //Control Unit
   logic [6:0] op_code;
-  logic [2:0] f3;
+  logic [2:0] func3;
   assign op_code = instruction[6:0];
-  assign f3 = instruction[14:12];
+  assign func3   = instruction[14:12];
   wire zero;
 
   wire [2:0] alu_control;
@@ -45,7 +47,7 @@ module cpu (
   wire mem_write;
   wire reg_write;
 
-  control control (
+  control control_u (
       .op_code(op_code),
       .zero(zero),
       .imm_type(imm_type),
@@ -64,14 +66,14 @@ module cpu (
   assign address1 = instruction[19:15];
   assign address2 = instruction[24:20];
   assign address3 = instruction[11:7];
-  wire read_reg1;
-  wire read_reg2;
+  wire  [31:0] read_reg1;
+  wire  [31:0] read_reg2;
   logic [31:0] write_back_data;
   always_comb begin : wb_select
     write_back_data = mem_read;
   end
 
-  regfile regfile (
+  regfile regfile_u (
       .clk(clk),
       .rst_n(rst_n),
       .address1(address1),
@@ -85,29 +87,31 @@ module cpu (
 
   //Sign Extender
   logic [24:0] raw_src;
-  assign raw_imm = instruction[31:7];
+  assign raw_src = instruction[31:7];
   wire [31:0] imm_produced;
 
-  signextnd signextnd (
+  signextnd signextnd_u (
       .raw_src(raw_src),
       .imm_type(imm_type),
       .imm_produced(imm_produced)
   );
 
   //ALU
-  wire  [31:0] alu_result;
+  wire [31:0] alu_result;
+  wire last_bit;
   logic [31:0] src2;
 
   always_comb begin : src2_select
     src2 = imm_produced;
   end
 
-  alu alu (
+  alu alu_u (
       .src1(read_reg1),
       .src2(src2),
       .alu_control(alu_control),
       .alu_result(alu_result),
-      .zero(zero)
+      .zero(zero),
+      .last_bit(last_bit)
   );
 
   // Data Memory
