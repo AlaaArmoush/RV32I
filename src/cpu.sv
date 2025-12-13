@@ -1,0 +1,126 @@
+module cpu (
+    input logic clk,
+    input logic rst_n
+);
+
+  // PC
+  reg   [31:0] pc;
+  logic [31:0] pc_next;
+  always_comb begin : pc_select
+    pc_next = pc + 4;
+  end
+
+  always @(posedge clk) begin
+    if (rst_n == 0) begin
+      oc <= 32'b0;
+    end else begin
+      pc <= pc_next;
+    end
+  end
+
+  // Instruction ROM
+  wire [31:0] instruction;
+
+  memory #(
+      .test_mem("./imemory.hex")
+  ) imemory (
+      .clk(clk),
+      .address(pc),
+      .write_data(32'b0),
+      .write_enable(1'b0),
+      .rst_n(1'1),
+      .read_data(instruction)
+  );
+
+
+  //Control Unit
+  logic [6:0] op_code;
+  logic [2:0] f3;
+  assign op_code = instruction[6:0];
+  assign f3 = instruction[14:12];
+  wire zero;
+
+  wire [2:0] alu_control;
+  wire [2:0] imm_type;
+  wire mem_write;
+  wire reg_write;
+
+  control control (
+      .op_code(op_code),
+      .zero(zero),
+      .imm_type(imm_type),
+      .mem_write(mem_write),
+      .reg_write(reg_write),
+      .func3(func3),
+      .func7(7'b0),
+      .alu_control(alu_control)
+  );
+
+  //Regfile
+  logic [4:0] address1;
+  logic [4:0] address2;
+  logic [4:0] address3;
+  //risc-v keeps src and dest regs always same position
+  assign address1 = instruction[19:15];
+  assign address2 = instruction[24:20];
+  assign address3 = instruction[11:7];
+  wire read_reg1;
+  wire read_reg2;
+  logic [31:0] write_back_data;
+  always_comb begin : wb_select
+    write_back_data = mem_read;
+  end
+
+  regfile regfile (
+      .clk(clk),
+      .rst_n(rst_n),
+      .address1(address1),
+      .address2(address2),
+      .write_enable(reg_write),
+      .write_data(write_back_data),
+      .address3(address3),
+      .read_data1(read_reg1),
+      .read_data2(read_reg2)
+  );
+
+  //Sign Extender
+  logic [24:0] raw_src;
+  assign raw_imm = instruction[31:7];
+  wire [31:0] imm_produced;
+
+  signextnd signextnd (
+      .raw_src(raw_src),
+      .imm_type(imm_type),
+      .imm_produced(imm_produced)
+  );
+
+  //ALU
+  wire  [31:0] alu_result;
+  logic [31:0] src2;
+
+  always_comb begin : src2_select
+    src2 = imm_produced;
+  end
+
+  alu alu (
+      .src1(read_reg1),
+      .src2(src2),
+      .alu_control(alu_control),
+      .alu_result(alu_result),
+      .zero(zero)
+  );
+
+  // Data Memory
+  wire [31:0] mem_read;
+
+  memory #(
+      .test_mem("./dmemory.hex")
+  ) dmemory (
+      .clk(clk),
+      .address(alu_result),
+      .write_data(32'b0),
+      .write_enable(1'b0),
+      .rst_n(1'b1),
+      .read_data(mem_read)
+  );
+endmodule
