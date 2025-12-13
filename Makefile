@@ -16,6 +16,17 @@ build-%: $(SRC_DIR)/%.sv $(TB_DIR)/%_tb.sv
 # Run a testbench: binary is inside obj_dir
 run-%:
 	./$(BUILD_DIR)/$*/obj_dir/V$*_tb	
+	
+
+# ---- Special build for CPU (needs all src/*.sv modules) ----
+build-for-cpu:
+	verilator --binary $(wildcard $(SRC_DIR)/*.sv) $(TB_DIR)/cpu_tb.sv --top cpu_tb \
+		--Mdir $(BUILD_DIR)/cpu/obj_dir -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND
+
+run-for-cpu:
+	./$(BUILD_DIR)/cpu/obj_dir/Vcpu_tb
+
+
 # Build all testbenches
 all: $(TBS:%=build-%)
 
