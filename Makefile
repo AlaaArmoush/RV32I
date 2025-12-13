@@ -20,6 +20,7 @@ run-%:
 
 # ---- Special build for CPU (needs all src/*.sv modules) ----
 build-for-cpu:
+	mkdir -p $(BUILD_DIR)/cpu/obj_dir
 	verilator --binary $(wildcard $(SRC_DIR)/*.sv) $(TB_DIR)/cpu_tb.sv --top cpu_tb \
 		--Mdir $(BUILD_DIR)/cpu/obj_dir -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND
 
