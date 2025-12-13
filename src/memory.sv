@@ -1,7 +1,8 @@
 `timescale 1ns / 1ps
 
 module memory #(
-    parameter WORDS = 64
+    parameter WORDS = 64,
+    parameter test_mem = ""
 ) (
     input logic clk,
     input logic [31:0] address,
@@ -13,6 +14,10 @@ module memory #(
 );
   //byte addressed
   reg [31:0] mem[WORDS];
+
+  initial begin
+    $readmemh(test_mem, mem);
+  end
 
   always @(posedge clk) begin
     if (rst_n == 1'b0) begin
