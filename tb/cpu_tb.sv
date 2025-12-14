@@ -35,19 +35,29 @@ module cpu_tb;
     $display("---------------------------------------");
     cpu_reset();
     if (dut.pc !== 32'h0000_0000) $error("Initial PC Mismatch: Expected 0, Got %h", dut.pc);
+    @(posedge clk);
 
     @(posedge clk);
-    $display("Cycle 1 (Fetch) completed.");
-
-    @(posedge clk);
-    $display("Cycle 2 (Execute/WB) completed. PC is 0x%h", dut.pc);
-
+    $display("Cycle 1: LW executed");
     if (dut.regfile_u.registers[18] !== 32'hABCDEF11) begin
       $error("LW Test Failed! x18 expected 0xABCDEF11, Got 0x%h", dut.regfile_u.registers[18]);
     end else begin
       $display("LW Test Passed: Register x18 = 0x%h (Expected 0xABCDEF11)",
                dut.regfile_u.registers[18]);
     end
+
+    $display("---------------------------------------");
+    $display("Starting CPU SW Test (MEM[x0 + 16] = x18)");
+    $display("---------------------------------------");
+    // 16 / 4 = 4
+    if (dut.dmemory.mem[4] !== 32'hFFFFFFFF)
+      $error("Pre-test failed: Expected 0xFFFFFFFF, Got %h", dut.dmemory.mem[4]);
+
+    @(posedge clk);
+    $display("Cycle 2: SW expected");
+    if (dut.dmemory.mem[4] !== 32'hABCDEF11)
+      $error("SW Fail: Mem[4]=%h, Expected ABCDEF11", dut.dmemory.mem[4]);
+
 
     $display("---------------------------------------");
     $display("CPU Tests Completed");
