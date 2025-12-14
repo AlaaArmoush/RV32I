@@ -5,7 +5,7 @@ module control (
     output logic [2:0] imm_type,
     output logic mem_write,
     output logic reg_write,
-    //alu decoder 
+    //alu decoder
     input logic [2:0] func3,
     input logic [6:0] func7,
     output logic [2:0] alu_control
@@ -24,6 +24,13 @@ module control (
         alu_op = 2'b00;
       end
 
+      7'b0100011: begin
+        imm_type = 3'b001;
+        mem_write = 1'b1;
+        reg_write = 1'b0;
+        alu_op = 2'b00;
+      end
+
       default: begin
         imm_type = 3'b000;
         mem_write = 1'b0;
@@ -36,7 +43,7 @@ module control (
 
   always_comb begin : ALU_DECODER
     case (alu_op)
-      // LW 
+      // LW, SW
       2'b00:   alu_control = 3'b000;
       default: alu_control = 3'b111;
     endcase
