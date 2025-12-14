@@ -49,6 +49,19 @@ module control_tb;
 
     $display("LW Test Passed.");
 
+    $display("Test 2: SW Instruction (op_code = 0100011)");
+    op_code = 7'b0100011;
+
+    #1;
+
+    if (imm_type !== 3'b001) $error("SW Failed: imm_type expected 001, got %b", imm_type);
+    if (mem_write !== 1'b1) $error("SW Failed: mem_write expected 1, got %b", mem_write);
+    if (reg_write !== 1'b0) $error("SW Failed: reg_write expected 0, got %b", reg_write);
+    if (alu_control !== 3'b000)
+      $error("SW Failed: alu_control expected 000 (ADD + Base), got %b", alu_control);
+
+    $display("SW Test Passed.");
+
     $display("---------------------------------------");
     $display("Control Unit Tests All Passed Successfuly");
     $display("---------------------------------------");
