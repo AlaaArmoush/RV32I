@@ -55,6 +55,8 @@ module cpu (
       .imm_type(imm_type),
       .mem_write(mem_write),
       .reg_write(reg_write),
+      .alu_source(alu_source),
+      .result_source(result_source),
       .func3(func3),
       .func7(7'b0),
       .alu_control(alu_control)
