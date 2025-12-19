@@ -6,6 +6,7 @@ module control (
     output logic mem_write,
     output logic reg_write,
     output logic alu_source,
+    output logic result_source,
 
     //alu decoder
     input  logic [2:0] func3,
@@ -25,6 +26,7 @@ module control (
         reg_write = 1'b1;
         alu_op = 2'b00;
         alu_source = 1'b1;
+        result_source = 1'b1;
       end
 
       // S-type
@@ -42,6 +44,7 @@ module control (
         reg_write = 1'b1;
         alu_op = 2'b10;
         alu_source = 1'b0;
+        result_source = 1'b0;
       end
 
       default: begin
@@ -58,6 +61,14 @@ module control (
     case (alu_op)
       // LW, SW
       2'b00:   alu_control = 3'b000;
+      // R-type
+      2'b10: begin
+        case (func3)
+          // ADD
+          3'b000:  alu_control = 3'b000;
+          default: alu_control = 3'b111;
+        endcase
+      end
       default: alu_control = 3'b111;
     endcase
   end
