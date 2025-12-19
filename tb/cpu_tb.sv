@@ -58,6 +58,28 @@ module cpu_tb;
     if (dut.dmemory.mem[4] !== 32'hABCDEF11)
       $error("SW Fail: Mem[4]=%h, Expected ABCDEF11", dut.dmemory.mem[4]);
 
+    $display("---------------------------------------");
+    $display("Starting CPU LW Test 2 (x17 = MEM[x0 + 20])");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 3: LW executed");
+    if (dut.regfile_u.registers[17] !== 32'h12345678) begin
+      $error("LW Test 2 Failed! x17 expected 0x12345678, Got 0x%h", dut.regfile_u.registers[17]);
+    end else begin
+      $display("LW Test 2 Passed: Register x17 = 0x%h (Expected 0x12345678)",
+               dut.regfile_u.registers[17]);
+    end
+    $display("---------------------------------------");
+    $display("Starting CPU ADD Test (x19 = x18 + x17)");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 4: ADD executed");
+    if (dut.regfile_u.registers[19] !== 32'hBE024589) begin
+      $error("ADD Test Failed! x19 expected 0xBE024589, Got 0x%h", dut.regfile_u.registers[19]);
+    end else begin
+      $display("ADD Test Passed: Register x19 = 0x%h (Expected 0xBE024589)",
+               dut.regfile_u.registers[19]);
+    end
 
     $display("---------------------------------------");
     $display("CPU Tests Completed");
