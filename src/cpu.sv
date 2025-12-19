@@ -46,6 +46,8 @@ module cpu (
   wire [2:0] imm_type;
   wire mem_write;
   wire reg_write;
+  wire alu_source;
+  wire result_source;
 
   control control_u (
       .op_code(op_code),
@@ -68,9 +70,13 @@ module cpu (
   assign address3 = instruction[11:7];
   wire  [31:0] read_reg1;
   wire  [31:0] read_reg2;
+
   logic [31:0] write_back_data;
   always_comb begin : wb_select
-    write_back_data = mem_read;
+    case (result_source)
+      1'b1: write_back_data = mem_read;
+      default: write_back_data = alu_result;
+    endcase
   end
 
   regfile regfile_u (
@@ -102,7 +108,10 @@ module cpu (
   logic [31:0] src2;
 
   always_comb begin : src2_select
-    src2 = imm_produced;
+    case (alu_source)
+      1'b1: src2 = imm_produced;
+      default: src2 = read_reg2;
+    endcase
   end
 
   alu alu_u (
