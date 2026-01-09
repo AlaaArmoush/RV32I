@@ -65,7 +65,12 @@ module control (
       2'b10: begin
         case (func3)
           // ADD
-          3'b000:  alu_control = 3'b000;
+          3'b000: alu_control = 3'b000;
+          // OR
+          3'b110: alu_control = 3'b011;
+          // AND
+          3'b111: alu_control = 3'b010;
+
           default: alu_control = 3'b111;
         endcase
       end
