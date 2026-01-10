@@ -49,14 +49,16 @@ module cpu_tb;
     $display("---------------------------------------");
     $display("Starting CPU SW Test (MEM[x0 + 16] = x18)");
     $display("---------------------------------------");
-    // 16 / 4 = 4
     if (dut.dmemory.mem[4] !== 32'hFFFFFFFF)
       $error("Pre-test failed: Expected 0xFFFFFFFF, Got %h", dut.dmemory.mem[4]);
 
     @(posedge clk);
     $display("Cycle 2: SW expected");
-    if (dut.dmemory.mem[4] !== 32'hABCDEF11)
+    if (dut.dmemory.mem[4] !== 32'hABCDEF11) begin
       $error("SW Fail: Mem[4]=%h, Expected ABCDEF11", dut.dmemory.mem[4]);
+    end else begin
+      $display("SW Test Passed: Mem[4] = 0x%h (Expected 0xABCDEF11)", dut.dmemory.mem[4]);
+    end
 
     $display("---------------------------------------");
     $display("Starting CPU LW Test 2 (x17 = MEM[x0 + 20])");
@@ -69,6 +71,7 @@ module cpu_tb;
       $display("LW Test 2 Passed: Register x17 = 0x%h (Expected 0x12345678)",
                dut.regfile_u.registers[17]);
     end
+
     $display("---------------------------------------");
     $display("Starting CPU ADD Test (x19 = x18 + x17)");
     $display("---------------------------------------");
@@ -82,9 +85,60 @@ module cpu_tb;
     end
 
     $display("---------------------------------------");
+    $display("Starting CPU AND Test (x21 = x18 & x19)");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 5: AND executed");
+    if (dut.regfile_u.registers[21] !== 32'hAA004501) begin
+      $error("AND Test Failed! x21 expected 0x8A004501, Got 0x%h", dut.regfile_u.registers[21]);
+    end else begin
+      $display("AND Test Passed: Register x21 = 0x%h (Expected 0x8A004501)",
+               dut.regfile_u.registers[21]);
+    end
+
+    $display("---------------------------------------");
+    $display("Starting CPU LW Test 3 (x5 = MEM[x0 + 24])");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 6: LW executed");
+    if (dut.regfile_u.registers[5] !== 32'h125F552D) begin
+      $error("LW Test 3 Failed! x5 expected 0x125F552D, Got 0x%h", dut.regfile_u.registers[5]);
+    end else begin
+      $display("LW Test 3 Passed: Register x5 = 0x%h (Expected 0x125F552D)",
+               dut.regfile_u.registers[5]);
+    end
+
+    $display("---------------------------------------");
+    $display("Starting CPU LW Test 4 (x6 = MEM[x0 + 28])");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 7: LW executed");
+    if (dut.regfile_u.registers[6] !== 32'h7F4FD46A) begin
+      $error("LW Test 4 Failed! x6 expected 0x7F4FD46A, Got 0x%h", dut.regfile_u.registers[6]);
+    end else begin
+      $display("LW Test 4 Passed: Register x6 = 0x%h (Expected 0x7F4FD46A)",
+               dut.regfile_u.registers[6]);
+    end
+
+    $display("---------------------------------------");
+    $display("Starting CPU OR Test (x7 = x5 | x6)");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 8: OR executed");
+    if (dut.regfile_u.registers[7] !== 32'h7F5FD56F) begin
+      $error("OR Test Failed! x7 expected 0x7F5FD56F, Got 0x%h", dut.regfile_u.registers[7]);
+    end else begin
+      $display("OR Test Passed: Register x7 = 0x%h (Expected 0x7F5FD56F)",
+               dut.regfile_u.registers[7]);
+    end
+
+
+    $display("---------------------------------------");
     $display("CPU Tests Completed");
     $display("---------------------------------------");
     $finish;
   end
 
 endmodule
+
+
