@@ -23,10 +23,18 @@ module regfile_tb;
   );
 
   class RegTx;
-    rand bit [4:0] a1, a2, a3;
-    rand bit [31:0] w_data;
-    rand bit w_en;
-  endclass
+    bit [4:0] a1, a2, a3;
+    bit [31:0] w_data;
+    bit w_en;
+
+    function void randomize_tx();
+      a1 = $urandom();
+      a2 = $urandom();
+      a3 = $urandom();
+      w_data = $urandom();
+      w_en = $urandom() & 1'b1;
+    endfunction
+  endclass : RegTx
 
   class Scoreboard;
     bit [31:0] shadow_regs[32];
@@ -74,7 +82,7 @@ module regfile_tb;
     $display("starting random test...");
 
     for (int i = 0; i < 1000; i++) begin
-      if (!tx.randomize()) $fatal("Randomization failed");
+      tx.randomize_tx();
       //drive inputs at negedge for safe setup time
       @(negedge clk);
       address1 = tx.a1;

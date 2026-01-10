@@ -10,7 +10,7 @@ module signextnd_tb;
   );
 
 
-  // Golden Model 
+  // Golden Model
   function bit [31:0] calc_expected(bit [31:7] src, bit [3:0] type_code);
     /* verilator lint_off WIDTHEXPAND */
     bit [31:0] expected_imm;
@@ -18,7 +18,7 @@ module signextnd_tb;
     bit signed [11:0] i_imm;
     bit signed [11:0] s_imm;
     bit signed [12:0] b_imm;
-    bit signed [20:0] j_imm;  // 20 bits shifted by 1 
+    bit signed [20:0] j_imm;  // 20 bits shifted by 1
     bit signed [31:12] u_imm;  // upper 20 bits
 
     case (type_code)
@@ -77,7 +77,7 @@ module signextnd_tb;
     check(calc_expected(raw_src, imm_type), imm_produced);
     for (int i = 0; i < 100; i++) begin
       bit [11:0] imm_val;
-      void'(std::randomize(imm_val));
+      imm_val = $urandom();
       raw_src = {imm_val, 13'b0};
       #1;
       check(calc_expected(raw_src, imm_type), imm_produced);
@@ -87,7 +87,7 @@ module signextnd_tb;
     $display("Testing S-Type (Store)");
     for (int i = 0; i < 100; i++) begin
       bit [11:0] imm_val;
-      void'(std::randomize(imm_val));
+      imm_val = $urandom();
 
       raw_src = {(imm_val[11:5] << 25), (imm_val[4:0] << 7)};
       raw_src = raw_src[31:7];
@@ -99,7 +99,7 @@ module signextnd_tb;
     $display("Testing B-type (Branch)");
     for (int i = 0; i < 100; i++) begin
       bit [12:0] imm_val;
-      void'(std::randomize(imm_val));
+      imm_val = $urandom();
       imm_val[0] = 0;
       raw_src = {
         imm_val[12] << 24,  // Imm[12] -> Inst[31]
@@ -116,7 +116,7 @@ module signextnd_tb;
     $display("Testing J-type (JAL");
     for (int i = 0; i < 100; i++) begin
       bit [20:0] imm_val;
-      void'(std::randomize(imm_val));
+      imm_val = $urandom();
       imm_val[0] = 0;
       raw_src = {
         imm_val[20] << 24,  // Imm[20] -> Inst[31]
@@ -133,7 +133,7 @@ module signextnd_tb;
     $display("Testing U-type (LUI/AUIPC)");
     for (int i = 0; i < 100; i++) begin
       bit [19:0] imm_val_top;
-      void'(std::randomize(imm_val_top));
+      imm_val_top = $urandom();
       raw_src = {imm_val_top, 5'b0};
       raw_src = raw_src[31:7];
       #1;
