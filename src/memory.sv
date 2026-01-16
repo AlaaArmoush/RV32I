@@ -19,7 +19,7 @@ module memory #(
     $readmemh(test_mem, mem);
   end
 
-  always @(posedge clk) begin
+  always_ff @(posedge clk) begin
     if (rst_n == 1'b0) begin
       for (int i = 0; i < WORDS; i++) begin
         mem[i] <= 32'b0;
