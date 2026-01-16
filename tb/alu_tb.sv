@@ -70,6 +70,19 @@ module alu_tb;
     if (alu_result !== 0) $error("Zero logic math failed! 12345 + (-12345) = %d", alu_result);
     if (zero !== 1'b1) $error("Zero Flag Failed! Result is 0 but zero flag is %b", zero);
 
+    $display("Test 6: SUB");
+    alu_control = 3'b001;
+    for (int i = 0; i < 1000; i++) begin
+      rand_src1 = $urandom();
+      rand_src2 = $urandom();
+      src1 = rand_src1;
+      src2 = rand_src2;
+      #1;
+      expected = src1 - src2;
+      if (alu_result !== expected)
+        $error("SUB Failed! %h | %h = %h (Expected %h)", src1, src2, alu_result, expected);
+    end
+
 
     $display("---------------------------------------");
     $display("ALU Tests passed successfully");

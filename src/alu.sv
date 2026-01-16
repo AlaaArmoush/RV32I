@@ -11,9 +11,11 @@ module alu (
 );
   always_comb begin : alu_logic
     case (alu_control)
-      //ADD
+      // ADD
       3'b000: alu_result = src1 + src2;
-      //AND
+      // SUB
+      3'b001: alu_result = src1 - src2;
+      // AND
       3'b010: alu_result = src1 & src2;
       // OR
       3'b011: alu_result = src1 | src2;
