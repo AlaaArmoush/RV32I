@@ -49,8 +49,8 @@ module cpu_tb;
     $display("---------------------------------------");
     $display("Starting CPU SW Test (MEM[x0 + 16] = x18)");
     $display("---------------------------------------");
-    if (dut.dmemory.mem[4] !== 32'hFFFFFFFF)
-      $error("Pre-test failed: Expected 0xFFFFFFFF, Got %h", dut.dmemory.mem[4]);
+    if (dut.dmemory.mem[4] !== 32'hF2F2F2F2)
+      $error("Pre-test failed: Expected 0xF2F2F2F2, Got %h", dut.dmemory.mem[4]);
 
     @(posedge clk);
     $display("Cycle 2: SW expected");
@@ -90,9 +90,9 @@ module cpu_tb;
     @(posedge clk);
     $display("Cycle 5: AND executed");
     if (dut.regfile_u.registers[21] !== 32'hAA004501) begin
-      $error("AND Test Failed! x21 expected 0x8A004501, Got 0x%h", dut.regfile_u.registers[21]);
+      $error("AND Test Failed! x21 expected 0xAA004501, Got 0x%h", dut.regfile_u.registers[21]);
     end else begin
-      $display("AND Test Passed: Register x21 = 0x%h (Expected 0x8A004501)",
+      $display("AND Test Passed: Register x21 = 0x%h (Expected 0xAA004501)",
                dut.regfile_u.registers[21]);
     end
 
@@ -132,13 +132,95 @@ module cpu_tb;
                dut.regfile_u.registers[7]);
     end
 
+    $display("---------------------------------------");
+    $display("Starting CPU NOP Test");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 9: NOP executed (PC should advance by 4)");
+    if (dut.pc !== 32'h00000024) begin
+      $error("NOP Test Failed! PC expected 0x00000024, Got 0x%h", dut.pc);
+    end else begin
+      $display("NOP Test Passed: PC = 0x%h (Expected 0x00000024)", dut.pc);
+    end
 
     $display("---------------------------------------");
-    $display("CPU Tests Completed");
+    $display("Starting CPU BEQ Test 1 (Not Taken: beq x6, x7, 12)");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 10: BEQ executed (x6=0x%h, x7=0x%h)", dut.regfile_u.registers[6],
+             dut.regfile_u.registers[7]);
+    if (dut.pc !== 32'h00000028) begin
+      $error("BEQ Test 1 Failed! PC expected 0x00000028 (Not Taken), Got 0x%h", dut.pc);
+    end else begin
+      $display("BEQ Test 1 Passed: PC = 0x%h (Branch Not Taken)", dut.pc);
+    end
+
+    $display("---------------------------------------");
+    $display("Starting CPU LW Test 5 (x22 = MEM[x0 + 8])");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 11: LW executed (Setup for BEQ Test 2)");
+    if (dut.regfile_u.registers[22] !== 32'hABCDEF11) begin
+      $error("LW Test 5 Failed! x22 expected 0xABCDEF11, Got 0x%h", dut.regfile_u.registers[22]);
+    end else begin
+      $display("LW Test 5 Passed: Register x22 = 0x%h (Expected 0xABCDEF11)",
+               dut.regfile_u.registers[22]);
+    end
+
+    $display("---------------------------------------");
+    $display("Starting CPU BEQ Test 2 (Taken: beq x18, x22, 16)");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 12: BEQ executed (x18=0x%h, x22=0x%h)", dut.regfile_u.registers[18],
+             dut.regfile_u.registers[22]);
+    if (dut.pc !== 32'h0000003C) begin
+      $error("BEQ Test 2 Failed! PC expected 0x0000003C (Taken), Got 0x%h", dut.pc);
+    end else begin
+      $display("BEQ Test 2 Passed: PC = 0x%h (Branch Taken)", dut.pc);
+    end
+
+    $display("---------------------------------------");
+    $display("Starting CPU LW Test 6 (x22 = MEM[x0 + 0])");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 13: LW executed");
+    if (dut.regfile_u.registers[22] !== 32'hAEAEAEAE) begin
+      $error("LW Test 6 Failed! x22 expected 0xAEAEAEAE, Got 0x%h", dut.regfile_u.registers[22]);
+    end else begin
+      $display("LW Test 6 Passed: Register x22 = 0x%h (Expected 0xAEAEAEAE)",
+               dut.regfile_u.registers[22]);
+    end
+
+    $display("---------------------------------------");
+    $display("Starting CPU BEQ Test 3 (Backward Branch: beq x22, x22, -8)");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 14: BEQ executed (x22=0x%h, x22=0x%h)", dut.regfile_u.registers[22],
+             dut.regfile_u.registers[22]);
+    if (dut.pc !== 32'h00000038) begin
+      $error("BEQ Test 3 Failed! PC expected 0x00000038 (Backward Branch), Got 0x%h", dut.pc);
+    end else begin
+      $display("BEQ Test 3 Passed: PC = 0x%h (Backward Branch Taken)", dut.pc);
+    end
+
+    $display("---------------------------------------");
+    $display("Starting CPU BEQ Test 4 (Jump Out: beq x0, x0, 12)");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 15: BEQ executed (x0=0x%h, x0=0x%h)", dut.regfile_u.registers[0],
+             dut.regfile_u.registers[0]);
+    if (dut.pc !== 32'h00000044) begin
+      $error("BEQ Test 4 Failed! PC expected 0x00000044 (Jump Out), Got 0x%h", dut.pc);
+    end else begin
+      $display("BEQ Test 4 Passed: PC = 0x%h (Jump Out of Loop)", dut.pc);
+    end
+
+    @(posedge clk);
+    $display("---------------------------------------");
+    $display("CPU Tests Completed Successfully");
     $display("---------------------------------------");
     $finish;
   end
 
 endmodule
-
 

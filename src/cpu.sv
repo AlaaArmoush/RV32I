@@ -6,13 +6,13 @@ module cpu (
 );
 
   // PC
-  reg   [31:0] pc;
+  logic [31:0] pc;
   logic [31:0] pc_next;
   always_comb begin : pc_select
-    pc_next = pc + 4;
+    pc_next = pc_src ? (pc + imm_produced) : (pc + 4);
   end
 
-  always @(posedge clk) begin
+  always_ff @(posedge clk) begin
     if (rst_n == 0) begin
       pc <= 32'b0;
     end else begin
@@ -48,6 +48,7 @@ module cpu (
   wire reg_write;
   wire alu_source;
   wire result_source;
+  wire pc_src;
 
   control control_u (
       .op_code(op_code),
@@ -59,7 +60,8 @@ module cpu (
       .result_source(result_source),
       .func3(func3),
       .func7(7'b0),
-      .alu_control(alu_control)
+      .alu_control(alu_control),
+      .pc_src(pc_src)
   );
 
   //Regfile
