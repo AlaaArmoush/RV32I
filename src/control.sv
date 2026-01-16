@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+
 module control (
     //main decoder
     input logic [6:0] op_code,
@@ -7,6 +9,7 @@ module control (
     output logic reg_write,
     output logic alu_source,
     output logic result_source,
+    output logic pc_src,
 
     //alu decoder
     input  logic [2:0] func3,
@@ -16,6 +19,7 @@ module control (
 
 
   logic [1:0] alu_op;
+  logic branch;
 
   always_comb begin : MAIN_DECODER
     case (op_code)
@@ -27,8 +31,8 @@ module control (
         alu_op = 2'b00;
         alu_source = 1'b1;
         result_source = 1'b1;
+        branch = 1'b0;
       end
-
       // S-type
       7'b0100011: begin
         imm_type = 3'b001;
@@ -36,31 +40,51 @@ module control (
         reg_write = 1'b0;
         alu_op = 2'b00;
         alu_source = 1'b1;
+        result_source = 1'b0;
+        branch = 1'b0;
       end
-
       //R-type
       7'b0110011: begin
+        imm_type = 3'b000;
         mem_write = 1'b0;
         reg_write = 1'b1;
         alu_op = 2'b10;
         alu_source = 1'b0;
         result_source = 1'b0;
+        branch = 1'b0;
       end
-
+      // B-type
+      7'b1100011: begin
+        imm_type = 3'b010;
+        mem_write = 1'b0;
+        reg_write = 1'b0;
+        alu_op = 2'b01;
+        alu_source = 1'b0;
+        result_source = 1'b0;
+        branch = 1'b1;
+      end
       default: begin
         imm_type = 3'b000;
         mem_write = 1'b0;
         reg_write = 1'b0;
         alu_op = 2'b11;
+        alu_source = 1'b0;
+        result_source = 1'b0;
+        branch = 1'b0;
       end
     endcase
   end
 
 
+
+  assign pc_src = branch & zero;
+
   always_comb begin : ALU_DECODER
     case (alu_op)
       // LW, SW
       2'b00:   alu_control = 3'b000;
+      // B-type
+      2'b01:   alu_control = 3'b001;
       // R-type
       2'b10: begin
         case (func3)

@@ -12,6 +12,7 @@ module control_tb;
   logic [6:0] func7;
   //outputs
   logic [2:0] alu_control;
+  logic pc_src;
   control dut (
       .op_code(op_code),
       .zero(zero),
@@ -22,7 +23,8 @@ module control_tb;
       .imm_type(imm_type),
       .func3(func3),
       .func7(func7),
-      .alu_control(alu_control)
+      .alu_control(alu_control),
+      .pc_src(pc_src)
   );
   initial begin
     $display("---------------------------------------");
@@ -83,7 +85,7 @@ module control_tb;
       $error("AND Failed: alu_control expected 010 (AND), got %b", alu_control);
     $display("AND Test Passed.");
 
-    $display("Test 5: OR Instruction (op_code=0110011, func3=110)");
+    $display("Test 5: OR Instruction (op_code=0110011)");
     op_code = 7'b0110011;
     func3   = 3'b110;
     #1;
@@ -95,6 +97,22 @@ module control_tb;
     if (alu_control !== 3'b011)
       $error("OR Failed: alu_control expected 011 (OR), got %b", alu_control);
     $display("OR Test Passed.");
+
+    $display("Test 6.1: BEQ Instruction (op_code=1100011, zero=0) Branch Not Taken");
+    op_code = 7'b1100011;
+    zero = 0;
+    #1;
+    if (imm_type !== 3'b010) $error("BEQ Imm Type Fail");
+    if (alu_control !== 3'b001) $error("BEQ ALU Control Fail (Expected SUB)");
+    if (mem_write !== 0 || reg_write !== 0) $error("BEQ Mem/Reg Write Fail");
+    if (alu_source !== 0) $error("BEQ ALU Source Fail (Expected Reg)");
+    if (pc_src !== 0) $error("BEQ PC Source Fail (Expected 0 - Not Taken)");
+
+    $display("Test 6.2: BEQ (Branch Taken)");
+    zero = 1;  // Condition Met
+    #1;
+    if (pc_src !== 1) $error("BEQ PC Source Fail (Expected 1 - Taken)");
+    $display("BEQ Test Passed.");
 
     $display("---------------------------------------");
     $display("Control Unit Tests All Passed Successfuly");
