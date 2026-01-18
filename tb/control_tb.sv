@@ -5,7 +5,8 @@ module control_tb;
   logic [6:0] op_code;
   logic zero;
   //outputs
-  logic mem_write, reg_write, alu_source, result_source;
+  logic mem_write, reg_write, alu_source;
+  logic [1:0] result_source;
   logic [2:0] imm_type;
   //alu decoder inputs
   logic [2:0] func3;
@@ -42,7 +43,7 @@ module control_tb;
     if (mem_write !== 1'b0) $error("LW Failed: mem_write expected 0, got %b", mem_write);
     if (reg_write !== 1'b1) $error("LW Failed: reg_write expected 1, got %b", reg_write);
     if (alu_source !== 1'b1) $error("LW Failed: alu_source expected 1, got %b", alu_source);
-    if (result_source !== 1'b1)
+    if (result_source !== 2'b01)
       $error("LW Failed: result_source expected 1, got %b", result_source);
     if (alu_control !== 3'b000)
       $error("LW Failed: alu_control expected 000 (ADD), got %b", alu_control);
@@ -66,7 +67,7 @@ module control_tb;
     if (mem_write !== 1'b0) $error("ADD Failed: mem_write expected 0, got %b", mem_write);
     if (reg_write !== 1'b1) $error("ADD Failed: reg_write expected 1, got %b", reg_write);
     if (alu_source !== 1'b0) $error("ADD Failed: alu_source expected 0, got %b", alu_source);
-    if (result_source !== 1'b0)
+    if (result_source !== 2'b00)
       $error("ADD Failed: result_source expected 0, got %b", result_source);
     if (alu_control !== 3'b000)
       $error("ADD Failed: alu_control expected 000 (ADD), got %b", alu_control);
@@ -79,7 +80,7 @@ module control_tb;
     if (mem_write !== 1'b0) $error("AND Failed: mem_write expected 0, got %b", mem_write);
     if (reg_write !== 1'b1) $error("AND Failed: reg_write expected 1, got %b", reg_write);
     if (alu_source !== 1'b0) $error("AND Failed: alu_source expected 0, got %b", alu_source);
-    if (result_source !== 1'b0)
+    if (result_source !== 2'b00)
       $error("AND Failed: result_source expected 0, got %b", result_source);
     if (alu_control !== 3'b010)
       $error("AND Failed: alu_control expected 010 (AND), got %b", alu_control);
@@ -92,7 +93,7 @@ module control_tb;
     if (mem_write !== 1'b0) $error("OR Failed: mem_write expected 0, got %b", mem_write);
     if (reg_write !== 1'b1) $error("OR Failed: reg_write expected 1, got %b", reg_write);
     if (alu_source !== 1'b0) $error("OR Failed: alu_source expected 0, got %b", alu_source);
-    if (result_source !== 1'b0)
+    if (result_source !== 2'b00)
       $error("OR Failed: result_source expected 0, got %b", result_source);
     if (alu_control !== 3'b011)
       $error("OR Failed: alu_control expected 011 (OR), got %b", alu_control);
@@ -113,6 +114,15 @@ module control_tb;
     #1;
     if (pc_src !== 1) $error("BEQ PC Source Fail (Expected 1 - Taken)");
     $display("BEQ Test Passed.");
+
+    $display("Test 7: Jump Instruction (op_code=1101111)");
+    op_code = 7'b1101111;
+    #1;
+    if (imm_type !== 3'b011) $error("JAL Imm Type Fail");
+    if (reg_write !== 1'b1) $error("JAL Reg Write Fail");
+    if (result_source !== 2'b10) $error("JAL Result Source Fail (Expected 2'b10 for PC+4)");
+    if (pc_src !== 1'b1) $error("JAL PC Source Fail (Expected 1)");
+    $display("JAL Test Passed.");
 
     $display("---------------------------------------");
     $display("Control Unit Tests All Passed Successfuly");

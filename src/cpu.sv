@@ -8,8 +8,16 @@ module cpu (
   // PC
   logic [31:0] pc;
   logic [31:0] pc_next;
+  logic [31:0] pc_branch;
+  logic [31:0] pc_inc;
+
+  always_comb begin : pc_computation
+    pc_branch = pc + imm_produced;
+    pc_inc = pc + 4;
+  end
+
   always_comb begin : pc_select
-    pc_next = pc_src ? (pc + imm_produced) : (pc + 4);
+    pc_next = pc_src ? pc_branch : pc_inc;
   end
 
   always_ff @(posedge clk) begin
@@ -47,7 +55,7 @@ module cpu (
   wire mem_write;
   wire reg_write;
   wire alu_source;
-  wire result_source;
+  wire [1:0] result_source;
   wire pc_src;
 
   control control_u (
@@ -78,7 +86,9 @@ module cpu (
   logic [31:0] write_back_data;
   always_comb begin : wb_select
     case (result_source)
-      1'b1: write_back_data = mem_read;
+      2'b00:   write_back_data = alu_result;
+      2'b01:   write_back_data = mem_read;
+      2'b10:   write_back_data = pc_inc;
       default: write_back_data = alu_result;
     endcase
   end
