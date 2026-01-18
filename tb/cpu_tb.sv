@@ -215,6 +215,77 @@ module cpu_tb;
       $display("BEQ Test 4 Passed: PC = 0x%h (Jump Out of Loop)", dut.pc);
     end
 
+    $display("---------------------------------------");
+    $display("Starting CPU NOP Test 2");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 16: NOP executed (PC should advance by 4)");
+    if (dut.pc !== 32'h00000048) begin
+      $error("NOP Test 2 Failed! PC expected 0x00000048, Got 0x%h", dut.pc);
+    end else begin
+      $display("NOP Test 2 Passed: PC = 0x%h (Expected 0x00000048)", dut.pc);
+    end
+
+    $display("---------------------------------------");
+    $display("Starting CPU JAL Test 1 (Forward Jump: jal x1, 12)");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 17: JAL executed (Target PC = 0x48 + 12 = 0x54)");
+    if (dut.pc !== 32'h00000054) begin
+      $error("JAL Test 1 Failed! PC expected 0x00000054, Got 0x%h", dut.pc);
+    end else begin
+      $display("JAL Test 1 PC Passed: PC = 0x%h (Expected 0x00000054)", dut.pc);
+    end
+    if (dut.regfile_u.registers[1] !== 32'h0000004C) begin
+      $error("JAL Test 1 Link Failed! x1 expected 0x0000004C, Got 0x%h",
+             dut.regfile_u.registers[1]);
+    end else begin
+      $display("JAL Test 1 Link Passed: Register x1 = 0x%h (Expected 0x0000004C)",
+               dut.regfile_u.registers[1]);
+    end
+
+    $display("---------------------------------------");
+    $display("Starting CPU JAL Test 2 (Backward Jump: jal x1, -4)");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 18: JAL executed (Target PC = 0x54 - 4 = 0x50)");
+    if (dut.pc !== 32'h00000050) begin
+      $error("JAL Test 2 Failed! PC expected 0x00000050, Got 0x%h", dut.pc);
+    end else begin
+      $display("JAL Test 2 PC Passed: PC = 0x%h (Expected 0x00000050)", dut.pc);
+    end
+    if (dut.regfile_u.registers[1] !== 32'h00000058) begin
+      $error("JAL Test 2 Link Failed! x1 expected 0x00000058, Got 0x%h",
+             dut.regfile_u.registers[1]);
+    end else begin
+      $display("JAL Test 2 Link Passed: Register x1 = 0x%h (Expected 0x00000058)",
+               dut.regfile_u.registers[1]);
+    end
+
+
+    $display("---------------------------------------");
+    $display("Starting CPU JAL Test 3 (Jump Out: jal x1, 12)");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 19: JAL executed (Target PC = 0x50 + 12 = 0x5C)");
+    if (dut.pc !== 32'h0000005C) begin
+      $error("JAL Test 3 Failed! PC expected 0x0000005C, Got 0x%h", dut.pc);
+    end else begin
+      $display("JAL Test 3 Passed: PC = 0x%h (Jump Out of Loop)", dut.pc);
+    end
+
+    $display("---------------------------------------");
+    $display("Starting CPU LW Test 7 (Post-JAL: x7 = MEM[x0 + 12])");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 20: LW executed");
+    if (dut.regfile_u.registers[7] !== 32'hABCDEF11) begin
+      $error("LW Test 7 Failed! x7 expected 0xABCDEF11, Got 0x%h", dut.regfile_u.registers[7]);
+    end else begin
+      $display("LW Test 7 Passed: Register x7 = 0x%h (Expected 0xABCDEF11)",
+               dut.regfile_u.registers[7]);
+    end
+
     @(posedge clk);
     $display("---------------------------------------");
     $display("CPU Tests Completed Successfully");
@@ -223,4 +294,6 @@ module cpu_tb;
   end
 
 endmodule
+
+
 
