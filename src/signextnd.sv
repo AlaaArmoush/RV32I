@@ -19,7 +19,7 @@ module signextnd (
         {19{raw_src[31]}}, raw_src[31], raw_src[7], raw_src[30:25], raw_src[11:8], 1'b0
       };
       // J-type
-      3'b011: imm_produced = {{12{raw_src[31]}}, raw_src[19:12], raw_src[20], raw_src[30:21], 1'b0};
+      3'b011: imm_produced = {{11{raw_src[31]}}, raw_src[31], raw_src[19:12], raw_src[20], raw_src[30:21], 1'b0};
       // U-type
       3'b100: imm_produced = {raw_src[31:12], 12'b0};
 
