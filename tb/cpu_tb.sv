@@ -286,6 +286,41 @@ module cpu_tb;
                dut.regfile_u.registers[7]);
     end
 
+    $display("---------------------------------------");
+    $display("Starting CPU NOP Test 3");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 21: NOP executed (PC should advance by 4)");
+    if (dut.pc !== 32'h00000064) begin
+      $error("NOP Test 3 Failed! PC expected 0x00000064, Got 0x%h", dut.pc);
+    end else begin
+      $display("NOP Test 3 Passed: PC = 0x%h (Expected 0x00000064)", dut.pc);
+    end
+
+    $display("---------------------------------------");
+    $display("Starting CPU LW Test 8 (ADDI Prep: x18 = MEM[x0 + 0])");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 22: LW executed");
+    if (dut.regfile_u.registers[18] !== 32'hAEAEAEAE) begin
+      $error("LW Test 8 Failed! x18 expected 0xAEAEAEAE, Got 0x%h", dut.regfile_u.registers[18]);
+    end else begin
+      $display("LW Test 8 Passed: Register x18 = 0x%h (Expected 0xAEAEAEAE)",
+               dut.regfile_u.registers[18]);
+    end
+
+    $display("---------------------------------------");
+    $display("Starting CPU ADDI Test (x23 = x18 + 0x0BC)");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 23: ADDI executed");
+    if (dut.regfile_u.registers[23] !== 32'hAEAEAF6A) begin
+      $error("ADDI Test Failed! x23 expected 0xAEAEAF6A, Got 0x%h", dut.regfile_u.registers[23]);
+    end else begin
+      $display("ADDI Test Passed: Register x23 = 0x%h (Expected 0xAEAEAF6A)",
+               dut.regfile_u.registers[23]);
+    end
+
     @(posedge clk);
     $display("---------------------------------------");
     $display("CPU Tests Completed Successfully");
