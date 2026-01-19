@@ -35,6 +35,18 @@ module control (
         branch = 1'b0;
         jump = 1'b0;
       end
+      // I-type ALU
+      7'b0010011: begin
+        imm_type = 3'b000;
+        mem_write = 1'b0;
+        reg_write = 1'b1;
+        alu_op = 2'b10;
+        alu_source = 1'b1;
+        result_source = 2'b00;
+        branch = 1'b0;
+        jump = 1'b0;
+
+      end
       // S-type
       7'b0100011: begin
         imm_type = 3'b001;
