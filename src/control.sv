@@ -10,6 +10,7 @@ module control (
     output logic alu_source,
     output logic [1:0] result_source,
     output logic pc_src,
+    output logic [1:0] addr_base_src,
 
     //alu decoder
     input  logic [2:0] func3,
@@ -69,6 +70,16 @@ module control (
         branch = 1'b0;
         jump = 1'b0;
       end
+      // U-type
+      7'b0110111, 7'b0010111: begin
+        imm_type = 3'b100;
+        mem_write = 1'b0;
+        reg_write = 1'b1;
+        branch = 1'b0;
+        result_source = 2'b11;
+        jump = 1'b0;
+        addr_base_src = op_code[5] ? 2'b01 : 2'b00;
+      end
       // B-type
       7'b1100011: begin
         imm_type = 3'b010;
@@ -91,8 +102,8 @@ module control (
         result_source = 2'b10;
         branch = 1'b0;
         jump = 1'b1;
-
       end
+
       default: begin
         imm_type = 3'b000;
         mem_write = 1'b0;
