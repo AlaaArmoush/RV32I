@@ -24,6 +24,16 @@ module control (
   logic jump;
 
   always_comb begin : MAIN_DECODER
+    imm_type      = 3'b000;
+    mem_write     = 1'b0;
+    reg_write     = 1'b0;
+    alu_op        = 2'b00;
+    alu_source    = 1'b0;
+    result_source = 2'b00;
+    branch        = 1'b0;
+    jump          = 1'b0;
+    addr_base_src = 2'b00;
+
     case (op_code)
       // I-type
       7'b0000011: begin
