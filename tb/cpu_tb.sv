@@ -322,6 +322,30 @@ module cpu_tb;
     end
 
     @(posedge clk);
+
+    $display("---------------------------------------");
+    $display("Starting CPU AUIPC Test (auipc x5, 0x12345)");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 25: AUIPC executed");
+    if (dut.regfile_u.registers[5] !== 32'h12345070) begin
+      $error("AUIPC Fail: x5 expected 0x12345070, Got %h", dut.regfile_u.registers[5]);
+    end else begin
+      $display("AUIPC Test Passed: x5 = %h", dut.regfile_u.registers[5]);
+    end
+
+    $display("---------------------------------------");
+    $display("Starting CPU LUI Test (lui x5, 0xABCDE)");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 26: LUI executed");
+    if (dut.regfile_u.registers[5] !== 32'hABCDE000) begin
+      $error("LUI Fail: x5 expected 0xABCDE000, Got %h", dut.regfile_u.registers[5]);
+    end else begin
+      $display("LUI Test Passed: x5 = %h", dut.regfile_u.registers[5]);
+    end
+
+    @(posedge clk);
     $display("---------------------------------------");
     $display("CPU Tests Completed Successfully");
     $display("---------------------------------------");
