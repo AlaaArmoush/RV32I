@@ -14,6 +14,8 @@ module control_tb;
   //outputs
   logic [2:0] alu_control;
   logic pc_src;
+  logic [1:0] addr_base_src;
+
   control dut (
       .op_code(op_code),
       .zero(zero),
@@ -25,8 +27,10 @@ module control_tb;
       .func3(func3),
       .func7(func7),
       .alu_control(alu_control),
-      .pc_src(pc_src)
+      .pc_src(pc_src),
+      .addr_base_src(addr_base_src)
   );
+
   initial begin
     $display("---------------------------------------");
     $display("Starting Control Unit Verification");
@@ -125,11 +129,9 @@ module control_tb;
     $display("JAL Test Passed.");
 
     $display("Test 8: I-type (ALU) Instruction (op_code=0010011)");
-
     op_code = 7'b0010011;
     func3   = 3'b000;
     #1;
-
     if (alu_control !== 3'b000)
       $error("I-type Failed: alu_control expected 000, got %b", alu_control);
     if (imm_type !== 3'b000) $error("I-type Failed: imm_type expected 000, got %b", imm_type);
@@ -139,8 +141,24 @@ module control_tb;
     if (result_source !== 2'b00)
       $error("I-type Failed: result_source expected 00, got %b", result_source);
     if (pc_src !== 1'b0) $error("I-type Failed: pc_src expected 0, got %b", pc_src);
-
     $display("I-type Test Passed.");
+
+    $display("Test 9: LUI Instruction (op_code=0110111)");
+    op_code = 7'b0110111;
+    #1;
+    if (imm_type !== 3'b100) $error("LUI Imm Type Fail");
+    if (reg_write !== 1'b1) $error("LUI Reg Write Fail");
+    if (addr_base_src !== 2'b01) $error("LUI Addr Base Src Fail (Exp 01)");
+    if (result_source !== 2'b11) $error("LUI Result Source Fail (Exp 11)");
+    $display("LUI Test Passed.");
+
+    $display("Test 10: AUIPC Instruction (op_code=0010111)");
+    op_code = 7'b0010111;
+    #1;
+    if (imm_type !== 3'b100) $error("AUIPC Imm Type Fail");
+    if (addr_base_src !== 2'b00) $error("AUIPC Addr Base Src Fail (Exp 00)");
+    if (result_source !== 2'b11) $error("AUIPC Result Source Fail (Exp 11)");
+    $display("AUIPC Test Passed.");
 
     $display("---------------------------------------");
     $display("Control Unit Tests All Passed Successfuly");
@@ -148,4 +166,6 @@ module control_tb;
     $finish;
   end
 endmodule
+
+
 
