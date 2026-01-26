@@ -142,6 +142,8 @@ module control (
         case (func3)
           // ADD
           3'b000: alu_control = 3'b000;
+          // SLTI
+          3'b010: alu_control = 3'b101;
           // OR
           3'b110: alu_control = 3'b011;
           // AND

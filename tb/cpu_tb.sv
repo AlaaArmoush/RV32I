@@ -321,7 +321,7 @@ module cpu_tb;
                dut.regfile_u.registers[23]);
     end
 
-    @(posedge clk);
+    @(posedge clk);  // NOP
 
     $display("---------------------------------------");
     $display("Starting CPU AUIPC Test (auipc x5, 0x12345)");
@@ -343,6 +343,19 @@ module cpu_tb;
       $error("LUI Fail: x5 expected 0xABCDE000, Got %h", dut.regfile_u.registers[5]);
     end else begin
       $display("LUI Test Passed: x5 = %h", dut.regfile_u.registers[5]);
+    end
+
+    @(posedge clk);  // NOP
+
+    $display("---------------------------------------");
+    $display("Starting CPU STLI Test (slti x21, x18, 100)");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 28: STLI executed");
+    if (dut.regfile_u.registers[21] !== 32'h00000001) begin
+      $error("STLI Fail: x21 expeceted 1, Got %h", dut.regfile_u.registers[21]);
+    end else begin
+      $display("STLI Test Passed: x21 set to 1");
     end
 
     @(posedge clk);

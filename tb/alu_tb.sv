@@ -83,6 +83,23 @@ module alu_tb;
         $error("SUB Failed! %h | %h = %h (Expected %h)", src1, src2, alu_result, expected);
     end
 
+    $display("Test 7: Less Than Comparsion");
+    alu_control = 3'b101;
+    for (int i = 0; i < 1000; i++) begin
+      rand_src2 = $urandom();
+      rand_src1 = $urandom();
+      src1 = rand_src1;
+      src2 = rand_src2;
+      #1 expected = {31'b0, $signed(src1) < $signed(src2)};
+      if (alu_result !== expected)
+        $error(
+            "Less Than Comparsion Failed! %h & %h = %h (Expected %h)",
+            src1,
+            src2,
+            alu_result,
+            expected
+        );
+    end
 
     $display("---------------------------------------");
     $display("ALU Tests passed successfully");
