@@ -12,7 +12,7 @@ module control_tb;
   logic [2:0] func3;
   logic [6:0] func7;
   //outputs
-  logic [2:0] alu_control;
+  logic [3:0] alu_control;
   logic pc_src;
   logic [1:0] addr_base_src;
 
@@ -49,7 +49,7 @@ module control_tb;
     if (alu_source !== 1'b1) $error("LW Failed: alu_source expected 1, got %b", alu_source);
     if (result_source !== 2'b01)
       $error("LW Failed: result_source expected 1, got %b", result_source);
-    if (alu_control !== 3'b000)
+    if (alu_control !== 4'b0000)
       $error("LW Failed: alu_control expected 000 (ADD), got %b", alu_control);
     $display("LW Test Passed.");
 
@@ -60,7 +60,7 @@ module control_tb;
     if (mem_write !== 1'b1) $error("SW Failed: mem_write expected 1, got %b", mem_write);
     if (reg_write !== 1'b0) $error("SW Failed: reg_write expected 0, got %b", reg_write);
     if (alu_source !== 1'b1) $error("SW Failed: alu_source expected 1, got %b", alu_source);
-    if (alu_control !== 3'b000)
+    if (alu_control !== 4'b0000)
       $error("SW Failed: alu_control expected 000 (ADD + Base), got %b", alu_control);
     $display("SW Test Passed.");
 
@@ -73,7 +73,7 @@ module control_tb;
     if (alu_source !== 1'b0) $error("ADD Failed: alu_source expected 0, got %b", alu_source);
     if (result_source !== 2'b00)
       $error("ADD Failed: result_source expected 0, got %b", result_source);
-    if (alu_control !== 3'b000)
+    if (alu_control !== 4'b0000)
       $error("ADD Failed: alu_control expected 000 (ADD), got %b", alu_control);
     $display("ADD Test Passed.");
 
@@ -86,7 +86,7 @@ module control_tb;
     if (alu_source !== 1'b0) $error("AND Failed: alu_source expected 0, got %b", alu_source);
     if (result_source !== 2'b00)
       $error("AND Failed: result_source expected 0, got %b", result_source);
-    if (alu_control !== 3'b010)
+    if (alu_control !== 4'b0010)
       $error("AND Failed: alu_control expected 010 (AND), got %b", alu_control);
     $display("AND Test Passed.");
 
@@ -99,7 +99,7 @@ module control_tb;
     if (alu_source !== 1'b0) $error("OR Failed: alu_source expected 0, got %b", alu_source);
     if (result_source !== 2'b00)
       $error("OR Failed: result_source expected 0, got %b", result_source);
-    if (alu_control !== 3'b011)
+    if (alu_control !== 4'b0011)
       $error("OR Failed: alu_control expected 011 (OR), got %b", alu_control);
     $display("OR Test Passed.");
 
@@ -108,7 +108,7 @@ module control_tb;
     zero = 0;
     #1;
     if (imm_type !== 3'b010) $error("BEQ Imm Type Fail");
-    if (alu_control !== 3'b001) $error("BEQ ALU Control Fail (Expected SUB)");
+    if (alu_control !== 4'b0001) $error("BEQ ALU Control Fail (Expected SUB)");
     if (mem_write !== 0 || reg_write !== 0) $error("BEQ Mem/Reg Write Fail");
     if (alu_source !== 0) $error("BEQ ALU Source Fail (Expected Reg)");
     if (pc_src !== 0) $error("BEQ PC Source Fail (Expected 0 - Not Taken)");
@@ -132,7 +132,7 @@ module control_tb;
     op_code = 7'b0010011;
     func3   = 3'b000;
     #1;
-    if (alu_control !== 3'b000)
+    if (alu_control !== 4'b0000)
       $error("I-type Failed: alu_control expected 000, got %b", alu_control);
     if (imm_type !== 3'b000) $error("I-type Failed: imm_type expected 000, got %b", imm_type);
     if (mem_write !== 1'b0) $error("I-type Failed: mem_write expected 0, got %b", mem_write);
@@ -164,7 +164,7 @@ module control_tb;
     op_code = 7'b0010011;
     func3   = 3'b010;
     #1;
-    if (alu_control !== 3'b101)
+    if (alu_control !== 4'b0101)
       $error("SLTI Failed: alu_control expected 000, got %b", alu_control);
     if (imm_type !== 3'b000) $error("SLTI Failed: imm_type expected 000, got %b", imm_type);
     if (mem_write !== 1'b0) $error("SLTI Failed: mem_write expected 0, got %b", mem_write);
@@ -179,7 +179,7 @@ module control_tb;
     op_code = 7'b0010011;
     func3   = 3'b011;
     #1;
-    if (alu_control !== 3'b111)
+    if (alu_control !== 4'b0111)
       $error("SLTIU Failed: alu_control expected 000, got %b", alu_control);
     if (imm_type !== 3'b000) $error("SLTIU Failed: imm_type expected 000, got %b", imm_type);
     if (mem_write !== 1'b0) $error("SLTIU Failed: mem_write expected 0, got %b", mem_write);
@@ -190,8 +190,18 @@ module control_tb;
     if (pc_src !== 1'b0) $error("SLTIU Failed: pc_src expected 0, got %b", pc_src);
     $display("SLTIU Test Passed.");
 
-
-
+    $display("Test 12: XOR Instruction (op_code=0010011)");
+    op_code = 7'b0010011;
+    func3   = 3'b100;
+    #1;
+    if (mem_write !== 1'b0) $error("XOR Failed: mem_write expected 0, got %b", mem_write);
+    if (reg_write !== 1'b1) $error("XOR Failed: reg_write expected 1, got %b", reg_write);
+    if (alu_source !== 1'b1) $error("XOR Failed: alu_source expected 0, got %b", alu_source);
+    if (result_source !== 2'b00)
+      $error("XOR Failed: result_source expected 0, got %b", result_source);
+    if (alu_control !== 4'b1000)
+      $error("XOR Failed: alu_control expected 1000 (XOR), got %b", alu_control);
+    $display("XOR Test Passed.");
 
     $display("---------------------------------------");
     $display("Control Unit Tests All Passed Successfuly");
@@ -199,6 +209,4 @@ module control_tb;
     $finish;
   end
 endmodule
-
-
 

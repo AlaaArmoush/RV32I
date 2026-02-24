@@ -371,6 +371,18 @@ module cpu_tb;
       $display("SLTIU Test Passed: x22 set to 1");
     end
 
+    @(posedge clk);  // NOP
+
+    $display("---------------------------------------");
+    $display("Starting CPU XOR Test (xor x8, x18, x17)");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 32: XOR executed");
+    if (dut.regfile_u.registers[8] !== 32'h000001C4) begin
+      $error("XOR Fail: x8 expeceted 0x000001C4 Got %h", dut.regfile_u.registers[8]);
+    end else begin
+      $display("XOR Test Passed: x8 set to 0x000001C4");
+    end
 
     @(posedge clk);
     $display("---------------------------------------");

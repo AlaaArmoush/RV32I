@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 module alu_tb;
   logic [31:0] src1, src2, alu_result;
-  logic [2:0] alu_control;
+  logic [3:0] alu_control;
   logic zero;
   logic last_bit;
   alu dut (
@@ -15,7 +15,7 @@ module alu_tb;
   logic [31:0] rand_src1, rand_src2, expected;
   initial begin
     $display("Test 1: ADD Operation (1000 iter)");
-    alu_control = 3'b000;
+    alu_control = 4'b0000;
     for (int i = 0; i < 1000; i++) begin
       rand_src1 = $urandom();
       rand_src2 = $urandom();
@@ -28,7 +28,7 @@ module alu_tb;
     end
 
     $display("Test 2: AND Operation (1000 iter)");
-    alu_control = 3'b010;
+    alu_control = 4'b0010;
     for (int i = 0; i < 1000; i++) begin
       rand_src1 = $urandom();
       rand_src2 = $urandom();
@@ -41,7 +41,7 @@ module alu_tb;
     end
 
     $display("Test 3: OR Operation (1000 iter)");
-    alu_control = 3'b011;
+    alu_control = 4'b0011;
     for (int i = 0; i < 1000; i++) begin
       rand_src1 = $urandom();
       rand_src2 = $urandom();
@@ -54,7 +54,7 @@ module alu_tb;
     end
 
     $display("Test 4: Default Operation");
-    alu_control = 3'b111;
+    alu_control = 4'b0111;
     rand_src1 = $urandom();
     rand_src2 = $urandom();
     src1 = rand_src1;
@@ -63,7 +63,7 @@ module alu_tb;
     if (alu_result !== 32'b0) $error("Default Failed! Expected 0, Got %h", alu_result);
 
     $display("Test 5: Zero flag");
-    alu_control = 3'b000;
+    alu_control = 4'b0000;
     src1 = 32'd12345;
     src2 = -32'd12345;
     #1;
@@ -71,7 +71,7 @@ module alu_tb;
     if (zero !== 1'b1) $error("Zero Flag Failed! Result is 0 but zero flag is %b", zero);
 
     $display("Test 6: SUB");
-    alu_control = 3'b001;
+    alu_control = 4'b0001;
     for (int i = 0; i < 1000; i++) begin
       rand_src1 = $urandom();
       rand_src2 = $urandom();
@@ -84,7 +84,7 @@ module alu_tb;
     end
 
     $display("Test 7: Less Than Comparsion");
-    alu_control = 3'b101;
+    alu_control = 4'b0101;
     for (int i = 0; i < 1000; i++) begin
       rand_src2 = $urandom();
       rand_src1 = $urandom();
@@ -102,7 +102,7 @@ module alu_tb;
     end
 
     $display("Test 8: Less Than Comparsion (unsigned)");
-    alu_control = 3'b111;
+    alu_control = 4'b0111;
     for (int i = 0; i < 1000; i++) begin
       rand_src1 = $urandom();
       rand_src2 = $urandom();
@@ -119,7 +119,23 @@ module alu_tb;
         );
     end
 
-
+    $display("Test 9: XOR");
+    alu_control = 4'b1000;
+    for (int i = 0; i < 1000; i++) begin
+      rand_src1 = $urandom();
+      rand_src2 = $urandom();
+      src1 = rand_src1;
+      src2 = rand_src2;
+      #1 expected = {31'b0, src1 ^ src2};
+      if (alu_result != expected)
+        $error(
+            "Less Than Comparsion (unsigned) Failed! %h < %h = %h (Expected %h)",
+            src1,
+            src2,
+            alu_result,
+            expected
+        );
+    end
 
     $display("---------------------------------------");
     $display("ALU Tests passed successfully");

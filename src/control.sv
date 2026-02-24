@@ -15,9 +15,8 @@ module control (
     //alu decoder
     input  logic [2:0] func3,
     input  logic [6:0] func7,
-    output logic [2:0] alu_control
+    output logic [3:0] alu_control
 );
-
 
   logic [1:0] alu_op;
   logic branch;
@@ -134,27 +133,29 @@ module control (
   always_comb begin : ALU_DECODER
     case (alu_op)
       // LW, SW
-      2'b00:   alu_control = 3'b000;
+      2'b00:   alu_control = 4'b0000;
       // B-type
-      2'b01:   alu_control = 3'b001;
+      2'b01:   alu_control = 4'b0001;
       // R-type
       2'b10: begin
         case (func3)
           // ADD
-          3'b000: alu_control = 3'b000;
+          3'b000: alu_control = 4'b0000;
           // SLTI
-          3'b010: alu_control = 3'b101;
+          3'b010: alu_control = 4'b0101;
           // SLTIU
-          3'b011: alu_control = 3'b111;
+          3'b011: alu_control = 4'b0111;
+          // XOR
+          3'b100: alu_control = 4'b1000;
           // OR
-          3'b110: alu_control = 3'b011;
+          3'b110: alu_control = 4'b0011;
           // AND
-          3'b111: alu_control = 3'b010;
+          3'b111: alu_control = 4'b0010;
 
-          default: alu_control = 3'b111;
+          default: alu_control = 4'b0111;
         endcase
       end
-      default: alu_control = 3'b111;
+      default: alu_control = 4'b0111;
     endcase
   end
 

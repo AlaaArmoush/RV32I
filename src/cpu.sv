@@ -54,14 +54,14 @@ module cpu (
   assign func3   = instruction[14:12];
   wire zero;
 
-  wire [2:0] alu_control;
+  wire [3:0] alu_control;
   wire [2:0] imm_type;
   wire mem_write;
   wire reg_write;
   wire alu_source;
   wire [1:0] result_source;
   wire pc_src;
-  wire addr_base_src;
+  wire [1:0] addr_base_src;
 
   control control_u (
       .op_code(op_code),
