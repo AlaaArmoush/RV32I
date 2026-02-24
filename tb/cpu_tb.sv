@@ -348,15 +348,29 @@ module cpu_tb;
     @(posedge clk);  // NOP
 
     $display("---------------------------------------");
-    $display("Starting CPU STLI Test (slti x21, x18, 100)");
+    $display("Starting CPU SLTI Test (slti x21, x18, 100)");
     $display("---------------------------------------");
     @(posedge clk);
-    $display("Cycle 28: STLI executed");
+    $display("Cycle 28: SLTI executed");
     if (dut.regfile_u.registers[21] !== 32'h00000001) begin
-      $error("STLI Fail: x21 expeceted 1, Got %h", dut.regfile_u.registers[21]);
+      $error("SLTI Fail: x21 expeceted 1, Got %h", dut.regfile_u.registers[21]);
     end else begin
-      $display("STLI Test Passed: x21 set to 1");
+      $display("SLTI Test Passed: x21 set to 1");
     end
+
+    @(posedge clk);  // NOP
+
+    $display("---------------------------------------");
+    $display("Starting CPU SLTIU Test (slti x22, x18, 0xfff)");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 30: SLTIU executed");
+    if (dut.regfile_u.registers[22] !== 32'h00000001) begin
+      $error("SLTIU Fail: x22 expeceted 1, Got %h", dut.regfile_u.registers[21]);
+    end else begin
+      $display("SLTIU Test Passed: x22 set to 1");
+    end
+
 
     @(posedge clk);
     $display("---------------------------------------");

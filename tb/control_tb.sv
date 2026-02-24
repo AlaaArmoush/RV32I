@@ -160,20 +160,38 @@ module control_tb;
     if (result_source !== 2'b11) $error("AUIPC Result Source Fail (Exp 11)");
     $display("AUIPC Test Passed.");
 
-    $display("Test 10: STLI Instruction (op_code=0010011)");
+    $display("Test 10: STLI Instruction (op_code=0010011, func3 = 010)");
     op_code = 7'b0010011;
     func3   = 3'b010;
     #1;
     if (alu_control !== 3'b101)
-      $error("I-type Failed: alu_control expected 000, got %b", alu_control);
-    if (imm_type !== 3'b000) $error("I-type Failed: imm_type expected 000, got %b", imm_type);
-    if (mem_write !== 1'b0) $error("I-type Failed: mem_write expected 0, got %b", mem_write);
-    if (reg_write !== 1'b1) $error("I-type Failed: reg_write expected 1, got %b", reg_write);
-    if (alu_source !== 1'b1) $error("I-type Failed: alu_source expected 1, got %b", alu_source);
+      $error("SLTI Failed: alu_control expected 000, got %b", alu_control);
+    if (imm_type !== 3'b000) $error("SLTI Failed: imm_type expected 000, got %b", imm_type);
+    if (mem_write !== 1'b0) $error("SLTI Failed: mem_write expected 0, got %b", mem_write);
+    if (reg_write !== 1'b1) $error("SLTI Failed: reg_write expected 1, got %b", reg_write);
+    if (alu_source !== 1'b1) $error("SLTI Failed: alu_source expected 1, got %b", alu_source);
     if (result_source !== 2'b00)
-      $error("I-type Failed: result_source expected 00, got %b", result_source);
-    if (pc_src !== 1'b0) $error("I-type Failed: pc_src expected 0, got %b", pc_src);
-    $display("I-type Test Passed.");
+      $error("SLTI Failed: result_source expected 00, got %b", result_source);
+    if (pc_src !== 1'b0) $error("SLTI Failed: pc_src expected 0, got %b", pc_src);
+    $display("SLTI Test Passed.");
+
+    $display("Test 11: STLIU Instruction (op_code=0010011, func3 = 011)");
+    op_code = 7'b0010011;
+    func3   = 3'b011;
+    #1;
+    if (alu_control !== 3'b111)
+      $error("SLTIU Failed: alu_control expected 000, got %b", alu_control);
+    if (imm_type !== 3'b000) $error("SLTIU Failed: imm_type expected 000, got %b", imm_type);
+    if (mem_write !== 1'b0) $error("SLTIU Failed: mem_write expected 0, got %b", mem_write);
+    if (reg_write !== 1'b1) $error("SLTIU Failed: reg_write expected 1, got %b", reg_write);
+    if (alu_source !== 1'b1) $error("SLTIU Failed: alu_source expected 1, got %b", alu_source);
+    if (result_source !== 2'b00)
+      $error("SLTIU Failed: result_source expected 00, got %b", result_source);
+    if (pc_src !== 1'b0) $error("SLTIU Failed: pc_src expected 0, got %b", pc_src);
+    $display("SLTIU Test Passed.");
+
+
+
 
     $display("---------------------------------------");
     $display("Control Unit Tests All Passed Successfuly");
