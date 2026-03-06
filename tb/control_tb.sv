@@ -3,6 +3,7 @@
 module control_tb;
   logic [6:0] op_code;
   logic       zero;
+  logic       last_bit;  // NEW
   logic mem_write, reg_write, reg_write_gated, alu_source;
   logic [1:0] result_source;
   logic [2:0] imm_type;
@@ -13,29 +14,31 @@ module control_tb;
   logic [1:0] addr_base_src;
 
   control dut (
-      .op_code(op_code),
-      .zero(zero),
-      .mem_write(mem_write),
-      .reg_write(reg_write),
+      .op_code        (op_code),
+      .zero           (zero),
+      .last_bit       (last_bit),         // NEW
+      .mem_write      (mem_write),
+      .reg_write      (reg_write),
       .reg_write_gated(reg_write_gated),
-      .alu_source(alu_source),
-      .result_source(result_source),
-      .imm_type(imm_type),
-      .func3(func3),
-      .func7(func7),
-      .alu_control(alu_control),
-      .pc_src(pc_src),
-      .addr_base_src(addr_base_src)
+      .alu_source     (alu_source),
+      .result_source  (result_source),
+      .imm_type       (imm_type),
+      .func3          (func3),
+      .func7          (func7),
+      .alu_control    (alu_control),
+      .pc_src         (pc_src),
+      .addr_base_src  (addr_base_src)
   );
 
   initial begin
     $display("---------------------------------------");
     $display("Starting Control Unit Verification");
     $display("---------------------------------------");
-    op_code = 7'b0;
-    zero    = 1'b0;
-    func3   = 3'b0;
-    func7   = 7'b0;
+    op_code  = 7'b0;
+    zero     = 1'b0;
+    last_bit = 1'b0;  // NEW
+    func3    = 3'b0;
+    func7    = 7'b0;
     #1;
 
     $display("Test 1: LW Instruction (op_code=0000011)");
@@ -247,7 +250,7 @@ module control_tb;
     if (alu_source !== 1'b1) $error("SLLI Failed: alu_source expected 1, got %b", alu_source);
     $display("SLLI Test Passed.");
 
-    $display("Test 17: SLLI invalid func7 (func7=0100000) - reg_write_gated must be 0");
+    $display("Test 17: SLLI invalid func7 - reg_write_gated must be 0");
     op_code = 7'b0010011;
     func3   = 3'b001;
     func7   = 7'b0100000;
@@ -280,7 +283,7 @@ module control_tb;
     if (alu_source !== 1'b1) $error("SRAI Failed: alu_source expected 1, got %b", alu_source);
     $display("SRAI Test Passed.");
 
-    $display("Test 20: SRL/SRA invalid func7 (func7=0000001) - reg_write_gated must be 0");
+    $display("Test 20: SRL/SRA invalid func7 - reg_write_gated must be 0");
     op_code = 7'b0010011;
     func3   = 3'b101;
     func7   = 7'b0000001;
@@ -288,6 +291,86 @@ module control_tb;
     if (reg_write_gated !== 1'b0)
       $error("SRLI/SRAI Invalid func7 Failed: reg_write_gated expected 0, got %b", reg_write_gated);
     $display("SRL/SRA Invalid func7 Test Passed.");
+
+    // -------------------------------------------------------
+    // B-TYPE TESTS
+    // -------------------------------------------------------
+
+    $display("Test 21.1: BNE not taken (zero=0 means not equal, but we want taken...)");
+    op_code  = 7'b1100011;
+    func3    = 3'b001;
+    zero     = 1'b1;
+    last_bit = 1'b0;
+    #1;
+    if (alu_control !== 4'b0001)
+      $error("BNE Failed: alu_control expected 0001, got %b", alu_control);
+    if (pc_src !== 1'b0) $error("BNE Failed: pc_src expected 0 (not taken), got %b", pc_src);
+
+    $display("Test 21.2: BNE taken");
+    zero = 1'b0;
+    #1;
+    if (pc_src !== 1'b1) $error("BNE Failed: pc_src expected 1 (taken), got %b", pc_src);
+    $display("BNE Test Passed.");
+
+    $display("Test 22.1: BLT not taken (src1 >= src2)");
+    op_code  = 7'b1100011;
+    func3    = 3'b100;
+    last_bit = 1'b0;
+    #1;
+    if (alu_control !== 4'b0101)
+      $error("BLT Failed: alu_control expected 0101, got %b", alu_control);
+    if (pc_src !== 1'b0) $error("BLT Failed: pc_src expected 0 (not taken), got %b", pc_src);
+
+    $display("Test 22.2: BLT taken (src1 < src2)");
+    last_bit = 1'b1;
+    #1;
+    if (pc_src !== 1'b1) $error("BLT Failed: pc_src expected 1 (taken), got %b", pc_src);
+    $display("BLT Test Passed.");
+
+    $display("Test 23.1: BGE not taken (src1 < src2)");
+    op_code  = 7'b1100011;
+    func3    = 3'b101;
+    last_bit = 1'b1;
+    #1;
+    if (alu_control !== 4'b0101)
+      $error("BGE Failed: alu_control expected 0101, got %b", alu_control);
+    if (pc_src !== 1'b0) $error("BGE Failed: pc_src expected 0 (not taken), got %b", pc_src);
+
+    $display("Test 23.2: BGE taken (src1 >= src2)");
+    last_bit = 1'b0;
+    #1;
+    if (pc_src !== 1'b1) $error("BGE Failed: pc_src expected 1 (taken), got %b", pc_src);
+    $display("BGE Test Passed.");
+
+    $display("Test 24.1: BLTU not taken (src1 >= src2 unsigned)");
+    op_code  = 7'b1100011;
+    func3    = 3'b110;
+    last_bit = 1'b0;
+    #1;
+    if (alu_control !== 4'b0111)
+      $error("BLTU Failed: alu_control expected 0111, got %b", alu_control);
+    if (pc_src !== 1'b0) $error("BLTU Failed: pc_src expected 0 (not taken), got %b", pc_src);
+
+    $display("Test 24.2: BLTU taken (src1 < src2 unsigned)");
+    last_bit = 1'b1;
+    #1;
+    if (pc_src !== 1'b1) $error("BLTU Failed: pc_src expected 1 (taken), got %b", pc_src);
+    $display("BLTU Test Passed.");
+
+    $display("Test 25.1: BGEU not taken (src1 < src2 unsigned)");
+    op_code  = 7'b1100011;
+    func3    = 3'b111;
+    last_bit = 1'b1;
+    #1;
+    if (alu_control !== 4'b0111)
+      $error("BGEU Failed: alu_control expected 0111, got %b", alu_control);
+    if (pc_src !== 1'b0) $error("BGEU Failed: pc_src expected 0 (not taken), got %b", pc_src);
+
+    $display("Test 25.2: BGEU taken (src1 >= src2 unsigned)");
+    last_bit = 1'b0;
+    #1;
+    if (pc_src !== 1'b1) $error("BGEU Failed: pc_src expected 1 (taken), got %b", pc_src);
+    $display("BGEU Test Passed.");
 
     $display("---------------------------------------");
     $display("Control Unit Tests All Passed Successfully");

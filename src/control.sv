@@ -3,6 +3,7 @@
 module control (
     input  logic [6:0] op_code,
     input  logic       zero,
+    input  logic       last_bit,
     output logic [2:0] imm_type,
     output logic       mem_write,
     output logic       reg_write,
@@ -123,7 +124,21 @@ module control (
     endcase
   end
 
-  assign pc_src          = jump | (branch & zero);
+  logic assert_branch;
+  always_comb begin : BRANCH_LOGIC_DECODER
+    case (func3)
+      3'b000:  assert_branch = zero & branch;  // BEQ
+      3'b001:  assert_branch = ~zero & branch;  // BNE
+      3'b100:  assert_branch = last_bit & branch;  // BLT
+      3'b101:  assert_branch = ~last_bit & branch;  // BGE
+      3'b110:  assert_branch = last_bit & branch;  // BLTU
+      3'b111:  assert_branch = ~last_bit & branch;  // BGEU
+      default: assert_branch = 1'b0;
+    endcase
+
+  end
+  assign pc_src = assert_branch | jump;
+
   assign reg_write_gated = reg_write & ~illegal_op;
 
   always_comb begin : ALU_DECODER
@@ -134,7 +149,17 @@ module control (
       // LW, SW
       2'b00:   alu_control = 4'b0000;
       // B-type
-      2'b01:   alu_control = 4'b0001;
+      2'b01: begin
+        case (func3)
+          3'b000:  alu_control = 4'b0001;  // BEQ  → SUB
+          3'b001:  alu_control = 4'b0001;  // BNE  → SUB
+          3'b100:  alu_control = 4'b0101;  // BLT  → SLT
+          3'b101:  alu_control = 4'b0101;  // BGE  → SLT
+          3'b110:  alu_control = 4'b0111;  // BLTU → SLTU
+          3'b111:  alu_control = 4'b0111;  // BGEU → SLTU
+          default: alu_control = 4'b1111;
+        endcase
+      end
       // R-type & I-type ALU
       2'b10: begin
         case (func3)

@@ -50,18 +50,24 @@ module cpu (
   //Control Unit
   logic [6:0] op_code;
   logic [2:0] func3;
+  logic [6:0] func7;
   assign op_code = instruction[6:0];
   assign func3   = instruction[14:12];
+  assign func7   = instruction[31:25];
   wire zero;
 
   wire [3:0] alu_control;
   wire [2:0] imm_type;
   wire mem_write;
   wire reg_write;
+  wire reg_write_gated;
   wire alu_source;
   wire [1:0] result_source;
   wire pc_src;
   wire [1:0] addr_base_src;
+  wire [4:0] shamt;
+  assign shamt = instruction[24:20];
+  wire last_bit;
 
   control control_u (
       .op_code(op_code),
@@ -72,10 +78,12 @@ module cpu (
       .alu_source(alu_source),
       .result_source(result_source),
       .func3(func3),
-      .func7(7'b0),
+      .func7(func7),
       .alu_control(alu_control),
       .pc_src(pc_src),
-      .addr_base_src(addr_base_src)
+      .addr_base_src(addr_base_src),
+      .last_bit(last_bit),
+      .reg_write_gated(reg_write_gated)
   );
 
   //Regfile
@@ -105,7 +113,7 @@ module cpu (
       .rst_n(rst_n),
       .address1(address1),
       .address2(address2),
-      .write_enable(reg_write),
+      .write_enable(reg_write_gated),
       .write_data(write_back_data),
       .address3(address3),
       .read_data1(read_reg1),
@@ -124,8 +132,7 @@ module cpu (
   );
 
   //ALU
-  wire [31:0] alu_result;
-  wire last_bit;
+  wire  [31:0] alu_result;
   logic [31:0] src2;
 
   always_comb begin : src2_select
@@ -141,7 +148,8 @@ module cpu (
       .alu_control(alu_control),
       .alu_result(alu_result),
       .zero(zero),
-      .last_bit(last_bit)
+      .last_bit(last_bit),
+      .shamt(shamt)
   );
 
   // Data Memory

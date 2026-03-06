@@ -38,7 +38,7 @@ module alu (
       default: alu_result = 32'b0;
     endcase
     zero = (alu_result == 32'b0);
-    last_bit = 1'b0;
+    last_bit = alu_result[0];
   end
 
 endmodule

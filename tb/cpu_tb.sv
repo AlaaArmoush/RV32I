@@ -384,7 +384,39 @@ module cpu_tb;
       $display("XOR Test Passed: x8 set to 0x000001C4");
     end
 
+    @(posedge clk);  // NOP
+
+    $display("---------------------------------------");
+    $display("Starting CPU BLT Test 1 (Not Taken: blt x17, x18, 8)");
+    $display("---------------------------------------");
     @(posedge clk);
+    $display("Cycle 34: BLT executed (x17=0x%h, x18=0x%h)", dut.regfile_u.registers[17],
+             dut.regfile_u.registers[18]);
+    if (dut.pc !== 32'h00000098) begin
+      $error("BLT Test 1 Failed! PC expected 0x00000098 (Not Taken), Got 0x%h", dut.pc);
+    end else begin
+      $display("BLT Test 1 Passed: PC = 0x%h (Branch Not Taken)", dut.pc);
+    end
+
+    $display("---------------------------------------");
+    $display("Starting CPU BLT Test 2 (Taken: blt x18, x17, 8)");
+    $display("---------------------------------------");
+    @(posedge clk);
+    $display("Cycle 35: BLT executed (x18=0x%h, x17=0x%h)", dut.regfile_u.registers[18],
+             dut.regfile_u.registers[17]);
+    if (dut.pc !== 32'h000000A0) begin
+      $error("BLT Test 2 Failed! PC expected 0x000000A0 (Taken), Got 0x%h", dut.pc);
+    end else begin
+      $display("BLT Test 2 Passed: PC = 0x%h (Branch Taken)", dut.pc);
+    end
+    if (dut.regfile_u.registers[8] !== 32'h000001C4) begin
+      $error("BLT Poison Check Failed! x8 expected 0x000001C4, Got 0x%h",
+             dut.regfile_u.registers[8]);
+    end else begin
+      $display("BLT Poison Check Passed: x8 = 0x%h (Expected 0x000001C4)",
+               dut.regfile_u.registers[8]);
+    end
+
     $display("---------------------------------------");
     $display("CPU Tests Completed Successfully");
     $display("---------------------------------------");
