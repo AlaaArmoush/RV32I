@@ -39,3 +39,8 @@
 0x01194463 // 0x98: blt x18,x17,8  TAKEN     (x18 neg < x17 pos) -> PC=0xA0
 0x00C00413 // 0x9C: addi x8,x0,12  NEVER EXECUTED (poison)
 0x00000013 // 0xA0: NOP
+0x0C000393 // 0xA4: addi x7, x0, 0x0C0  -> x7 = 0x000000C0
+0xFF5380E7 // 0xA8: jalr x1, -11(x7)    -> target = 0xB5, cleared to 0xB4; x1 = 0xAC
+0x06300413 // 0xAC: addi x8, x0, 99     -> poison, should NOT execute
+0x00000013 // 0xB0: NOP                 -> also skipped
+0x00500493 // 0xB4: addi x9, x0, 5      -> landing instruction

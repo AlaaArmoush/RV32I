@@ -132,7 +132,7 @@ module control_tb;
 
     $display("Test 7: JAL Instruction (op_code=1101111)");
     op_code = 7'b1101111;
-    zero    = 0;
+    zero = 0;
     #1;
     if (imm_type !== 3'b011) $error("JAL Failed: imm_type expected 011, got %b", imm_type);
     if (reg_write !== 1'b1) $error("JAL Failed: reg_write expected 1, got %b", reg_write);
@@ -140,6 +140,27 @@ module control_tb;
       $error("JAL Failed: result_source expected 10, got %b", result_source);
     if (pc_src !== 1'b1) $error("JAL Failed: pc_src expected 1, got %b", pc_src);
     $display("JAL Test Passed.");
+
+    $display("Test 7b: JALR Instruction (op_code=1100111)");
+    op_code = 7'b1100111;
+    zero = 0;
+    func3 = 3'b000;
+    func7 = 7'b0000000;
+    last_bit = 0;
+    #1
+
+    if (imm_type !== 3'b000) $error("JALR Failed: imm_type expected 000, got %b", imm_type);
+    if (mem_write !== 1'b0) $error("JALR Failed: mem_write expected 0, got %b", mem_write);
+    if (reg_write !== 1'b1) $error("JALR Failed: reg_write expected 1, got %b", reg_write);
+    if (result_source !== 2'b10)
+      $error("JALR Failed: result_source expected 10, got %b", result_source);
+    if (pc_src !== 1'b1) $error("JALR Failed: pc_src expected 1, got %b", pc_src);
+    if (addr_base_src !== 2'b10)
+      $error("JALR Failed: addr_base_src expected 10, got %b", addr_base_src);
+
+    $display("JALR Test Passed.");
+
+    
 
     $display("Test 8: ADDI Instruction (op_code=0010011, func3=000)");
     op_code = 7'b0010011;

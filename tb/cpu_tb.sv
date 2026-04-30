@@ -417,6 +417,46 @@ module cpu_tb;
                dut.regfile_u.registers[8]);
     end
 
+     $display("---------------------------------------");
+    $display("Starting CPU JALR Test (rs1 + odd immediate target)");
+    $display("---------------------------------------");
+
+    @(posedge clk);  // 0xA0: NOP, move to 0xA4
+    if (dut.pc !== 32'h000000A4) begin
+      $error("JALR Setup Failed! PC expected 0x000000A4, Got 0x%h", dut.pc);
+    end
+
+    @(posedge clk);  // 0xA4: addi x7, x0, 0x0C0
+    if (dut.regfile_u.registers[7] !== 32'h000000C0) begin
+      $error("JALR Base Failed! x7 expected 0x000000C0, Got 0x%h",
+             dut.regfile_u.registers[7]);
+    end
+
+    @(posedge clk);  // 0xA8: jalr x1, -11(x7), raw target 0xB5 -> aligned 0xB4
+    if (dut.pc !== 32'h000000B4) begin
+      $error("JALR PC Failed! PC expected 0x000000B4, Got 0x%h", dut.pc);
+    end
+
+    if (dut.regfile_u.registers[1] !== 32'h000000AC) begin
+      $error("JALR Link Failed! x1 expected 0x000000AC, Got 0x%h",
+             dut.regfile_u.registers[1]);
+    end
+
+    if (dut.regfile_u.registers[8] !== 32'h000001C4) begin
+      $error("JALR Poison Check Failed! x8 should still be 0x000001C4, Got 0x%h",
+             dut.regfile_u.registers[8]);
+    end
+
+    @(posedge clk);  // 0xB4: addi x9, x0, 5
+    if (dut.regfile_u.registers[9] !== 32'h00000005) begin
+      $error("JALR Landing Failed! x9 expected 0x00000005, Got 0x%h",
+             dut.regfile_u.registers[9]);
+    end else begin
+      $display("JALR Test Passed: PC target aligned, link written, poison skipped");
+    end
+
+
+
     $display("---------------------------------------");
     $display("CPU Tests Completed Successfully");
     $display("---------------------------------------");

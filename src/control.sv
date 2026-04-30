@@ -1,27 +1,31 @@
 `timescale 1ns / 1ps
 
 module control (
-    input  logic [6:0] op_code,
-    input  logic       zero,
-    input  logic       last_bit,
-    output logic [2:0] imm_type,
-    output logic       mem_write,
-    output logic       reg_write,
-    output logic       reg_write_gated,
-    output logic       alu_source,
-    output logic [1:0] result_source,
-    output logic       pc_src,
-    output logic [1:0] addr_base_src,
+    input  logic [6:0] op_code,          // Instruction opcode, selects the main instruction type
+    input  logic       zero,             // ALU result is zero, used by BEQ/BNE
+    input  logic       last_bit,         // ALU result bit 0, used by SLT/SLTU based branches
+    output logic [2:0] imm_type,         // Immediate format: I, S, B, J, or U
+    output logic       mem_write,        // Enables data-memory write for store instructions
+    output logic       reg_write,        // Enables register-file write-back
+    output logic       reg_write_gated,  // Register write enable after illegal-op blocking
+    output logic       alu_source,       // ALU src2 select: 0=register, 1=immediate
+    output logic [1:0] result_source,    // Write-back select: ALU, memory, PC+4, or target
+    output logic       pc_src,           // Next-PC select: 0=PC+4, 1=branch/jump target
+    output logic [1:0] addr_base_src,    // Target-base select: PC, immediate, or rs1
 
-    input  logic [2:0] func3,
-    input  logic [6:0] func7,
-    output logic [3:0] alu_control
+    input  logic [2:0] func3,            // funct3 field, selects instruction variant
+    input  logic [6:0] func7,            // funct7 field, separates ops like ADD/SUB and SRL/SRA
+    output logic [3:0] alu_control       // ALU operation select
 );
 
+  // imm_type:      000=I, 001=S, 010=B, 011=J, 100=U
+  // result_source: 00=ALU result, 01=memory read, 10=PC+4, 11=pc_target
+  // addr_base_src: 00=PC+imm, 01=imm only for LUI, 10=rs1+imm for JALR
+  // alu_op:        00=ADD, 01=branch compare, 10=decode func3/func7, 11=invalid
   logic [1:0] alu_op;
-  logic       branch;
-  logic       jump;
-  logic       illegal_op;
+  logic       branch;      // Current instruction is a conditional branch
+  logic       jump;        // Current instruction is an unconditional jump
+  logic       illegal_op;  // Blocks register writes for invalid ALU encodings
 
   always_comb begin : MAIN_DECODER
     imm_type      = 3'b000;
@@ -111,6 +115,19 @@ module control (
         branch        = 1'b0;
         jump          = 1'b1;
       end
+      // JALR, I-type jump
+      7'b1100111: begin
+        imm_type = 3'b000;
+        mem_write = 1'b0;
+        reg_write = 1'b1; // PC+4 into rd 
+        alu_op = 2'b00; 
+        alu_source = 1'b0;
+        result_source = 2'b10; // write-back source = pc_inc
+        branch = 1'b0; 
+        jump = 1'b1;
+        addr_base_src = 2'b10; // target = rs1 + immd
+      end
+
       default: begin
         imm_type      = 3'b000;
         mem_write     = 1'b0;
@@ -195,4 +212,3 @@ module control (
   end
 
 endmodule
-
