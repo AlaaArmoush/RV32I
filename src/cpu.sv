@@ -16,6 +16,7 @@ module cpu (
     case (addr_base_src)
       2'b00:   pc_target = pc + imm_produced;
       2'b01:   pc_target = imm_produced;  // lui
+      2'b10:   pc_target = (read_reg1 + imm_produced) & 32'hFFFF_FFFE; //jalr
       default: pc_target = pc + imm_produced;
     endcase
   end
