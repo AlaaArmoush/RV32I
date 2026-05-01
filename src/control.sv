@@ -183,33 +183,52 @@ module control (
       2'b10: begin
         case (func3)
           3'b000: begin  // ADD/ADDI or SUB
-            if (op_code == 7'b0110011) alu_control = (func7 == 7'b0100000) ? 4'b0001 : 4'b0000;
-            else alu_control = 4'b0000;
-          end
-          3'b001: begin  // SLL / SLLI
-            if (func7 == 7'b0000000) alu_control = 4'b0100;
-            else begin
-              alu_control = 4'b1111;
-              illegal_op  = 1'b1;
+            if (op_code == 7'b0110011) begin
+              if (func7 == 7'b0000000) alu_control = 4'b0000;
+              else if (func7 == 7'b0100000) alu_control = 4'b0001;
+              else illegal_op = 1'b1;
+            end else begin
+              alu_control = 4'b0000;
             end
           end
-          3'b010:  alu_control = 4'b0101;  // SLT / SLTI
-          3'b011:  alu_control = 4'b0111;  // SLTU / SLTIU
-          3'b100:  alu_control = 4'b1000;  // XOR / XORI
+
+          3'b001: begin  // SLL/SLLI
+            if (func7 == 7'b0000000) alu_control = 4'b0100;
+            else illegal_op = 1'b1;
+          end
+
+          3'b010: begin  // SLT/SLTI
+            if (op_code == 7'b0110011 && func7 != 7'b0000000) illegal_op = 1'b1;
+            else alu_control = 4'b0101;
+          end
+
+          3'b011: begin  // SLTU/SLTIU
+            if (op_code == 7'b0110011 && func7 != 7'b0000000) illegal_op = 1'b1;
+            else alu_control = 4'b0111;
+          end
+
+          3'b100: begin  // XOR/XORI
+            if (op_code == 7'b0110011 && func7 != 7'b0000000) illegal_op = 1'b1;
+            else alu_control = 4'b1000;
+          end
+
           3'b101: begin  // SRL/SRLI or SRA/SRAI
             if (func7 == 7'b0000000) alu_control = 4'b0110;
             else if (func7 == 7'b0100000) alu_control = 4'b1001;
-            else begin
-              alu_control = 4'b1111;
-              illegal_op  = 1'b1;
-            end
+            else illegal_op = 1'b1;
           end
-          3'b110:  alu_control = 4'b0011;  // OR / ORI
-          3'b111:  alu_control = 4'b0010;  // AND / ANDI
+
+          3'b110: begin  // OR/ORI
+            if (op_code == 7'b0110011 && func7 != 7'b0000000) illegal_op = 1'b1;
+            else alu_control = 4'b0011;
+          end
+
+          3'b111: begin  // AND/ANDI
+            if (op_code == 7'b0110011 && func7 != 7'b0000000) illegal_op = 1'b1;
+            else alu_control = 4'b0010;
+          end
+
           default: alu_control = 4'b1111;
-        endcase
-      end
-      default: alu_control = 4'b1111;
     endcase
   end
 
