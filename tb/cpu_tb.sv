@@ -506,18 +506,54 @@ module cpu_tb;
   // Main test
   // ------------------------------------------------------------
   initial begin
-    reset_cpu();
+    string custom_imem;
+    if ($value$plusargs("imem=%s", custom_imem)) begin
+      $display("=======================================");
+      $display("Running custom program: %s", custom_imem);
+      $display("Skipping strict verification checks.");
+      $display("=======================================");
+      reset_cpu();
+      // Run until infinite loop is detected or max cycles reached
+      begin
+        logic [31:0] prev_pc = 32'hFFFFFFFF;
+        for (int i=0; i<500; i++) begin
+          @(posedge clk);
+          #1ps;
+          if (dut.pc == prev_pc) begin
+            $display("Infinite loop detected at PC=0x%08h (Program Halted).", dut.pc);
+            break;
+          end
+          $display("PC=0x%08h, Instr=0x%08h", dut.pc, dut.instruction);
+          prev_pc = dut.pc;
+        end
+      end
+      
+      $display("---------------------------------------");
+      $display("Final Register State:");
+      $display("---------------------------------------");
+      for (int i=0; i<32; i+=4) begin
+        $display("x%02d: 0x%08h  x%02d: 0x%08h  x%02d: 0x%08h  x%02d: 0x%08h",
+          i, dut.regfile_u.registers[i],
+          i+1, dut.regfile_u.registers[i+1],
+          i+2, dut.regfile_u.registers[i+2],
+          i+3, dut.regfile_u.registers[i+3]);
+      end
+      $display("Custom program execution finished.");
+      $finish;
+    end else begin
+      reset_cpu();
 
-    verify_word_load_store_and_basic_alu();
-    verify_branches();
-    verify_jal();
-    verify_immediates_and_compare_ops();
-    verify_blt_and_jalr();
-    verify_partial_stores();
-    verify_partial_loads();
+      verify_word_load_store_and_basic_alu();
+      verify_branches();
+      verify_jal();
+      verify_immediates_and_compare_ops();
+      verify_blt_and_jalr();
+      verify_partial_stores();
+      verify_partial_loads();
 
-    check_cpu_coverage();
-    finish_report("cpu_tb");
+      check_cpu_coverage();
+      finish_report("cpu_tb");
+    end
   end
 
 endmodule

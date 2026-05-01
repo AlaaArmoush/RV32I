@@ -37,7 +37,8 @@ module cpu (
   wire [31:0] instruction;
 
   memory #(
-      .test_mem("./tests/imemory.hex")
+      .test_mem("./tests/imemory.hex"),
+      .load_file_arg("imem")
   ) imemory (
       .clk(clk),
       .address(pc),
@@ -176,7 +177,8 @@ module cpu (
   );
 
   memory #(
-      .test_mem("./tests/dmemory.hex")
+      .test_mem("./tests/dmemory.hex"),
+      .load_file_arg("dmem")
   ) dmemory (
       .clk(clk),
       .address(alu_result),

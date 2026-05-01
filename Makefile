@@ -15,7 +15,7 @@ build-%: $(SRC_DIR)/%.sv $(TB_DIR)/%_tb.sv
 
 # Run a testbench: binary is inside obj_dir
 run-%:
-	./$(BUILD_DIR)/$*/obj_dir/V$*_tb	
+	./$(BUILD_DIR)/$*/obj_dir/V$*_tb $(ARGS)
 	
 
 # ---- Special build for CPU (needs all src/*.sv modules) ----
@@ -25,7 +25,7 @@ build-for-cpu:
 		--Mdir $(BUILD_DIR)/cpu/obj_dir -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND
 
 run-for-cpu:
-	./$(BUILD_DIR)/cpu/obj_dir/Vcpu_tb
+	./$(BUILD_DIR)/cpu/obj_dir/Vcpu_tb $(ARGS)
 
 
 # Build all testbenches
@@ -37,6 +37,19 @@ clean-%:
 # Clean all build outputs
 clean:
 	rm -rf $(BUILD_DIR)/*
+	rm -f *.hex *.elf *.bin
 
-.PHONY: all clean run-% build-%
+.PHONY: all clean run-% build-% assemble
 
+# ---- Assembler Helper ----
+# Compile RISC-V assembly (.s) to hex memory file (.hex)
+assemble:
+	@if [ -z "$(SOURCE)" ] || [ -z "$(OUT)" ]; then \
+		echo "Usage: make assemble SOURCE=program.s OUT=program.hex"; \
+		exit 1; \
+	fi
+	riscv64-linux-gnu-gcc -march=rv32i -mabi=ilp32 -Wl,-Ttext=0x0 -nostdlib $(SOURCE) -o $(OUT).elf
+	riscv64-linux-gnu-objcopy -O binary -j .text $(OUT).elf $(OUT).bin
+	hexdump -v -e '1/4 "%08x\n"' $(OUT).bin > $(OUT)
+	rm -f $(OUT).elf $(OUT).bin
+	@echo "Successfully compiled $(SOURCE) to $(OUT)!"
