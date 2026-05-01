@@ -455,7 +455,77 @@ module cpu_tb;
       $display("JALR Test Passed: PC target aligned, link written, poison skipped");
     end
 
+    $display("---------------------------------------");
+    $display("Starting CPU SB/SH Store Tests");
+    $display("---------------------------------------");
 
+    @(posedge clk);  // 0xB8: sw x0, 32(x0)
+    if (dut.dmemory.mem[8] !== 32'h00000000) begin
+      $error("SB/SH setup failed! Mem[8] expected 0x00000000, Got 0x%h",
+            dut.dmemory.mem[8]);
+    end
+
+    @(posedge clk);  // 0xBC: sb x17, 33(x0)
+    if (dut.dmemory.mem[8] !== 32'h00007800) begin
+      $error("SB lane 1 failed! Mem[8] expected 0x00007800, Got 0x%h",
+            dut.dmemory.mem[8]);
+    end
+
+    @(posedge clk);  // 0xC0: sb x23, 35(x0)
+    if (dut.dmemory.mem[8] !== 32'h6A007800) begin
+      $error("SB lane 3 failed! Mem[8] expected 0x6A007800, Got 0x%h",
+            dut.dmemory.mem[8]);
+    end
+
+    @(posedge clk);  // 0xC4: sh x17, 36(x0)
+    if (dut.dmemory.mem[9] !== 32'h00005678) begin
+      $error("SH lower half failed! Mem[9] expected 0x00005678, Got 0x%h",
+            dut.dmemory.mem[9]);
+    end
+
+    @(posedge clk);  // 0xC8: sh x18, 38(x0)
+    if (dut.dmemory.mem[9] !== 32'hAEAE5678) begin
+      $error("SH upper half failed! Mem[9] expected 0xAEAE5678, Got 0x%h",
+            dut.dmemory.mem[9]);
+    end else begin
+      $display("SB/SH Tests Passed: byte and halfword stores updated only selected lanes");
+    end
+    
+    $display("---------------------------------------");
+    $display("Starting CPU LB/LH/LBU/LHU Load Tests");
+    $display("---------------------------------------");
+
+    @(posedge clk);  // 0xCC: lb x24, 33(x0)
+    if (dut.regfile_u.registers[24] !== 32'h00000078) begin
+      $error("LB failed! x24 expected 0x00000078, Got 0x%h",
+            dut.regfile_u.registers[24]);
+    end
+
+    @(posedge clk);  // 0xD0: lbu x25, 35(x0)
+    if (dut.regfile_u.registers[25] !== 32'h0000006A) begin
+      $error("LBU failed! x25 expected 0x0000006A, Got 0x%h",
+            dut.regfile_u.registers[25]);
+    end
+
+    @(posedge clk);  // 0xD4: lh x26, 38(x0)
+    if (dut.regfile_u.registers[26] !== 32'hFFFFAEAE) begin
+      $error("LH sign-extend failed! x26 expected 0xFFFFAEAE, Got 0x%h",
+            dut.regfile_u.registers[26]);
+    end
+
+    @(posedge clk);  // 0xD8: lhu x27, 38(x0)
+    if (dut.regfile_u.registers[27] !== 32'h0000AEAE) begin
+      $error("LHU zero-extend failed! x27 expected 0x0000AEAE, Got 0x%h",
+            dut.regfile_u.registers[27]);
+    end
+
+    @(posedge clk);  // 0xDC: lh x28, 36(x0)
+    if (dut.regfile_u.registers[28] !== 32'h00005678) begin
+      $error("LH positive halfword failed! x28 expected 0x00005678, Got 0x%h",
+            dut.regfile_u.registers[28]);
+    end else begin
+      $display("LB/LH/LBU/LHU Tests Passed: partial loads sign/zero extend correctly");
+    end
 
     $display("---------------------------------------");
     $display("CPU Tests Completed Successfully");

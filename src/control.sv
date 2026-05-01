@@ -227,9 +227,12 @@ module control (
             if (op_code == 7'b0110011 && func7 != 7'b0000000) illegal_op = 1'b1;
             else alu_control = 4'b0010;
           end
-
           default: alu_control = 4'b1111;
-    endcase
-  end
+        endcase
+      end 
+      
+      default: alu_control = 4'b1111; 
+    endcase 
+  end 
 
 endmodule

@@ -12,12 +12,14 @@ module memory_tb;
   logic [31:0] address;
   logic [DATA_WIDTH-1:0] write_data;
   logic [DATA_WIDTH-1:0] read_data;
+  logic [3:0] byte_enable;
 
   memory #(.WORDS(WORDS)) 
     dut(.clk(clk),
         .rst_n(rst_n),
         .write_enable(write_enable),
         .address(address),
+        .byte_enable(byte_enable),
         .write_data(write_data),
         .read_data(read_data)
         );
@@ -36,6 +38,7 @@ module memory_tb;
     // test 1: reset 
     rst_n = 0; //active low 
     write_enable = 0;
+    byte_enable = 4'b1111;
     address = 0;
     write_data = 0;
     @(posedge clk);
@@ -84,6 +87,60 @@ module memory_tb;
     if(read_data != i*100) $fatal("readback missmatch at addr %0d: expected %h, got %h", test_data[i].addr, test_data[i].data, read_data);  
     end
     $display("Test 3 passed: Burst write/read operations");
+
+    // test 4 byte-enable partial writes
+    // Setup: write a known full word at address 0
+    address = 32'd0;
+    write_data = 32'h11223344;
+    byte_enable = 4'b1111;
+    write_enable = 1;
+    @(posedge clk);
+
+    write_enable = 0;
+    @(posedge clk);
+
+    if (read_data !== 32'h11223344)
+      $fatal("Test 4 setup failed: expected 11223344, got %h", read_data);
+
+    // Write only byte 0: changes 0x44 into 0xAA
+    address = 32'd0;
+    write_data = 32'h000000AA;
+    byte_enable = 4'b0001;
+    write_enable = 1;
+    @(posedge clk);
+
+    write_enable = 0;
+    @(posedge clk);
+
+    if (read_data !== 32'h112233AA)
+      $fatal("Byte lane 0 failed: expected 112233AA, got %h", read_data);
+
+    // Write only byte 1: changes 0x33 into 0xBB
+    write_data = 32'h0000BB00;
+    byte_enable = 4'b0010;
+    write_enable = 1;
+    @(posedge clk);
+
+    write_enable = 0;
+    @(posedge clk);
+
+    if (read_data !== 32'h1122BBAA)
+      $fatal("Byte lane 1 failed: expected 1122BBAA, got %h", read_data);
+
+    // Write upper halfword: changes 0x1122 into 0xCCDD
+    write_data = 32'hCCDD0000;
+    byte_enable = 4'b1100;
+    write_enable = 1;
+    @(posedge clk);
+
+    write_enable = 0;
+    @(posedge clk);
+
+    if (read_data !== 32'hCCDDBBAA)
+      $fatal("Upper halfword failed: expected CCDDBBAA, got %h", read_data);
+
+    $display("Test 4 passed: byte_enable partial writes");
+
 
     $display("\n===================");
     $display("All tests passed!");

@@ -43,6 +43,7 @@ module cpu (
       .address(pc),
       .write_data(32'b0),
       .write_enable(1'b0),
+      .byte_enable(4'b0000),
       .rst_n(1'b1),
       .read_data(instruction)
   );
@@ -66,8 +67,7 @@ module cpu (
   wire [1:0] result_source;
   wire pc_src;
   wire [1:0] addr_base_src;
-  wire [4:0] shamt;
-  assign shamt = instruction[24:20];
+  logic [4:0] shamt;
   wire last_bit;
 
   control control_u (
@@ -102,7 +102,7 @@ module cpu (
   always_comb begin : wb_select
     case (result_source)
       2'b00:   write_back_data = alu_result;
-      2'b01:   write_back_data = mem_read;
+      2'b01:   write_back_data = load_data;
       2'b10:   write_back_data = pc_inc;
       2'b11:   write_back_data = pc_target;
       default: write_back_data = alu_result;
@@ -120,6 +120,14 @@ module cpu (
       .read_data1(read_reg1),
       .read_data2(read_reg2)
   );
+
+  always_comb begin : shamt_select
+    if (op_code == 7'b0110011) begin
+      shamt = read_reg2[4:0];      // R-type shifts use rs2 as the shift amount.
+    end else begin
+      shamt = instruction[24:20];  // I-type shifts use the encoded shamt field.
+    end
+  end
 
   //Sign Extender
   logic [24:0] raw_src;
@@ -155,15 +163,34 @@ module cpu (
 
   // Data Memory
   wire [31:0] mem_read;
+  wire [3:0] mem_byte_enable;
+  wire [31:0] store_data;
+  wire [31:0] load_data;
+
+  store_decoder store_decoder_u (
+      .func3(func3),
+      .address_offset(alu_result[1:0]),
+      .store_data_raw(read_reg2),
+      .byte_enable(mem_byte_enable),
+      .store_data(store_data)
+  );
 
   memory #(
       .test_mem("./tests/dmemory.hex")
   ) dmemory (
       .clk(clk),
       .address(alu_result),
-      .write_data(read_reg2),
+      .write_data(store_data),
       .write_enable(mem_write),
+      .byte_enable(mem_byte_enable),
       .rst_n(1'b1),
       .read_data(mem_read)
+  );
+
+  load_decoder load_decoder_u (
+      .func3(func3),
+      .address_offset(alu_result[1:0]),
+      .mem_read_raw(mem_read),
+      .load_data(load_data)
   );
 endmodule
