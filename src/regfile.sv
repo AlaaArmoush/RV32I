@@ -25,8 +25,8 @@ module regfile (
   end
 
   always_comb begin : readLogic
-    read_data1 = registers[address1];
-    read_data2 = registers[address2];
+    read_data1 = (address1 == 5'd0) ? 32'b0 : registers[address1];
+    read_data2 = (address2 == 5'd0) ? 32'b0 : registers[address2];
   end
 
 endmodule
