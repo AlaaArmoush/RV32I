@@ -2,7 +2,8 @@
 
 module memory #(
     parameter WORDS = 64,
-    parameter test_mem = ""
+    parameter test_mem = "",
+    parameter string load_file_arg = ""
 ) (
     input logic clk,
     input logic [31:0] address,
@@ -16,9 +17,14 @@ module memory #(
   //byte addressed
   logic [31:0] mem [0:WORDS-1];
 
+  string actual_file;
   initial begin
-    if (test_mem != "") begin
-      $readmemh(test_mem, mem);
+    actual_file = test_mem;
+    if (load_file_arg != "") begin
+      void'($value$plusargs({load_file_arg, "=%s"}, actual_file));
+    end
+    if (actual_file != "") begin
+      $readmemh(actual_file, mem);
     end
   end
 
