@@ -3,8 +3,11 @@
 module control_tb;
   logic [6:0] op_code;
   logic       zero;
-  logic       last_bit;  // NEW
-  logic mem_write, reg_write, reg_write_gated, alu_source;
+  logic       last_bit;
+  logic       mem_write;
+  logic       reg_write;
+  logic       reg_write_gated;
+  logic       alu_source;
   logic [1:0] result_source;
   logic [2:0] imm_type;
   logic [2:0] func3;
@@ -13,10 +16,37 @@ module control_tb;
   logic       pc_src;
   logic [1:0] addr_base_src;
 
+  int error_count = 0;
+  int total_checks = 0;
+  int passed_checks = 0;
+  int valid_vectors = 0;
+  int invalid_vectors = 0;
+  int branch_vectors = 0;
+
+  typedef struct {
+    logic [6:0] op_code;
+    logic [2:0] func3;
+    logic [6:0] func7;
+    logic       zero;
+    logic       last_bit;
+    logic [2:0] imm_type;
+    logic       mem_write;
+    logic       reg_write;
+    logic       reg_write_gated;
+    logic       alu_source;
+    logic [1:0] result_source;
+    logic       pc_src;
+    logic [1:0] addr_base_src;
+    logic [3:0] alu_control;
+    bit         is_invalid;
+    bit         is_branch_case;
+    string      name;
+  } control_vec_t;
+
   control dut (
       .op_code        (op_code),
       .zero           (zero),
-      .last_bit       (last_bit),         // NEW
+      .last_bit       (last_bit),
       .mem_write      (mem_write),
       .reg_write      (reg_write),
       .reg_write_gated(reg_write_gated),
@@ -30,373 +60,202 @@ module control_tb;
       .addr_base_src  (addr_base_src)
   );
 
+  task automatic check_eq1(input string label, input logic got, input logic expected);
+    total_checks++;
+    if (got !== expected) begin
+      $error("%s failed: expected %b, got %b", label, expected, got);
+      error_count++;
+    end else begin
+      passed_checks++;
+    end
+  endtask
+
+  task automatic check_eq2(input string label, input logic [1:0] got, input logic [1:0] expected);
+    total_checks++;
+    if (got !== expected) begin
+      $error("%s failed: expected %02b, got %02b", label, expected, got);
+      error_count++;
+    end else begin
+      passed_checks++;
+    end
+  endtask
+
+  task automatic check_eq3(input string label, input logic [2:0] got, input logic [2:0] expected);
+    total_checks++;
+    if (got !== expected) begin
+      $error("%s failed: expected %03b, got %03b", label, expected, got);
+      error_count++;
+    end else begin
+      passed_checks++;
+    end
+  endtask
+
+  task automatic check_eq4(input string label, input logic [3:0] got, input logic [3:0] expected);
+    total_checks++;
+    if (got !== expected) begin
+      $error("%s failed: expected %04b, got %04b", label, expected, got);
+      error_count++;
+    end else begin
+      passed_checks++;
+    end
+  endtask
+
+  task automatic apply_and_check(input control_vec_t vec);
+    op_code = vec.op_code;
+    func3 = vec.func3;
+    func7 = vec.func7;
+    zero = vec.zero;
+    last_bit = vec.last_bit;
+    #1;
+
+    $display("Vector: %s", vec.name);
+
+    check_eq3({vec.name, " imm_type"}, imm_type, vec.imm_type);
+    check_eq1({vec.name, " mem_write"}, mem_write, vec.mem_write);
+    check_eq1({vec.name, " reg_write"}, reg_write, vec.reg_write);
+    check_eq1({vec.name, " reg_write_gated"}, reg_write_gated, vec.reg_write_gated);
+    check_eq1({vec.name, " alu_source"}, alu_source, vec.alu_source);
+    check_eq2({vec.name, " result_source"}, result_source, vec.result_source);
+    check_eq1({vec.name, " pc_src"}, pc_src, vec.pc_src);
+    check_eq2({vec.name, " addr_base_src"}, addr_base_src, vec.addr_base_src);
+    check_eq4({vec.name, " alu_control"}, alu_control, vec.alu_control);
+
+    if (vec.is_invalid) invalid_vectors++;
+    else valid_vectors++;
+
+    if (vec.is_branch_case) branch_vectors++;
+  endtask
+
+  task automatic finish_report();
+    $display("---------------------------------------");
+    $display("Control TB summary");
+    $display("  Valid vectors      : %0d", valid_vectors);
+    $display("  Invalid vectors    : %0d", invalid_vectors);
+    $display("  Branch vectors     : %0d", branch_vectors);
+    $display("  Total checks       : %0d", total_checks);
+    $display("  Passed checks      : %0d", passed_checks);
+    $display("  Failed checks      : %0d", error_count);
+    $display("---------------------------------------");
+
+    if (error_count == 0) begin
+      $display("control_tb PASSED");
+      $finish;
+    end else begin
+      $fatal(1, "control_tb FAILED with %0d error(s)", error_count);
+    end
+  endtask
+
   initial begin
-    $display("---------------------------------------");
-    $display("Starting Control Unit Verification");
-    $display("---------------------------------------");
-    op_code  = 7'b0;
-    zero     = 1'b0;
-    last_bit = 1'b0;  // NEW
-    func3    = 3'b0;
-    func7    = 7'b0;
-    #1;
-
-    $display("Test 1: LW Instruction (op_code=0000011)");
-    op_code = 7'b0000011;
-    #1;
-    if (imm_type !== 3'b000) $error("LW Failed: imm_type expected 000, got %b", imm_type);
-    if (mem_write !== 1'b0) $error("LW Failed: mem_write expected 0, got %b", mem_write);
-    if (reg_write !== 1'b1) $error("LW Failed: reg_write expected 1, got %b", reg_write);
-    if (alu_source !== 1'b1) $error("LW Failed: alu_source expected 1, got %b", alu_source);
-    if (result_source !== 2'b01)
-      $error("LW Failed: result_source expected 01, got %b", result_source);
-    if (alu_control !== 4'b0000)
-      $error("LW Failed: alu_control expected 0000, got %b", alu_control);
-    $display("LW Test Passed.");
-
-    $display("Test 2: SW Instruction (op_code=0100011)");
-    op_code = 7'b0100011;
-    #1;
-    if (imm_type !== 3'b001) $error("SW Failed: imm_type expected 001, got %b", imm_type);
-    if (mem_write !== 1'b1) $error("SW Failed: mem_write expected 1, got %b", mem_write);
-    if (reg_write !== 1'b0) $error("SW Failed: reg_write expected 0, got %b", reg_write);
-    if (alu_source !== 1'b1) $error("SW Failed: alu_source expected 1, got %b", alu_source);
-    if (alu_control !== 4'b0000)
-      $error("SW Failed: alu_control expected 0000, got %b", alu_control);
-    $display("SW Test Passed.");
-
-    $display("Test 3: ADD Instruction (op_code=0110011, func3=000, func7=0000000)");
-    op_code = 7'b0110011;
-    func3   = 3'b000;
-    func7   = 7'b0000000;
-    #1;
-    if (mem_write !== 1'b0) $error("ADD Failed: mem_write expected 0, got %b", mem_write);
-    if (reg_write !== 1'b1) $error("ADD Failed: reg_write expected 1, got %b", reg_write);
-    if (alu_source !== 1'b0) $error("ADD Failed: alu_source expected 0, got %b", alu_source);
-    if (result_source !== 2'b00)
-      $error("ADD Failed: result_source expected 00, got %b", result_source);
-    if (alu_control !== 4'b0000)
-      $error("ADD Failed: alu_control expected 0000, got %b", alu_control);
-    $display("ADD Test Passed.");
-
-    $display("Test 3b: SUB Instruction (op_code=0110011, func3=000, func7=0100000)");
-    op_code = 7'b0110011;
-    func3   = 3'b000;
-    func7   = 7'b0100000;
-    #1;
-    if (alu_control !== 4'b0001)
-      $error("SUB Failed: alu_control expected 0001, got %b", alu_control);
-    if (reg_write !== 1'b1) $error("SUB Failed: reg_write expected 1, got %b", reg_write);
-    $display("SUB Test Passed.");
-
-    $display("Test 4: AND Instruction (op_code=0110011, func3=111)");
-    op_code = 7'b0110011;
-    func3   = 3'b111;
-    func7   = 7'b0;
-    #1;
-    if (mem_write !== 1'b0) $error("AND Failed: mem_write expected 0, got %b", mem_write);
-    if (reg_write !== 1'b1) $error("AND Failed: reg_write expected 1, got %b", reg_write);
-    if (alu_source !== 1'b0) $error("AND Failed: alu_source expected 0, got %b", alu_source);
-    if (alu_control !== 4'b0010)
-      $error("AND Failed: alu_control expected 0010, got %b", alu_control);
-    $display("AND Test Passed.");
-
-    $display("Test 5: OR Instruction (op_code=0110011, func3=110)");
-    op_code = 7'b0110011;
-    func3   = 3'b110;
-    #1;
-    if (mem_write !== 1'b0) $error("OR Failed: mem_write expected 0, got %b", mem_write);
-    if (reg_write !== 1'b1) $error("OR Failed: reg_write expected 1, got %b", reg_write);
-    if (alu_source !== 1'b0) $error("OR Failed: alu_source expected 0, got %b", alu_source);
-    if (alu_control !== 4'b0011)
-      $error("OR Failed: alu_control expected 0011, got %b", alu_control);
-    $display("OR Test Passed.");
-
-    $display("Test 6.1: BEQ Instruction (op_code=1100011, zero=0) Branch Not Taken");
-    op_code = 7'b1100011;
-    func3   = 3'b000;
-    zero    = 0;
-    #1;
-    if (imm_type !== 3'b010) $error("BEQ Failed: imm_type expected 010, got %b", imm_type);
-    if (alu_control !== 4'b0001)
-      $error("BEQ Failed: alu_control expected 0001, got %b", alu_control);
-    if (mem_write !== 0 || reg_write !== 0) $error("BEQ Failed: mem_write/reg_write expected 0");
-    if (alu_source !== 0) $error("BEQ Failed: alu_source expected 0, got %b", alu_source);
-    if (pc_src !== 0) $error("BEQ Failed: pc_src expected 0 (not taken), got %b", pc_src);
-
-    $display("Test 6.2: BEQ Branch Taken");
-    zero = 1;
-    #1;
-    if (pc_src !== 1) $error("BEQ Failed: pc_src expected 1 (taken), got %b", pc_src);
-    $display("BEQ Test Passed.");
-
-    $display("Test 7: JAL Instruction (op_code=1101111)");
-    op_code = 7'b1101111;
-    zero = 0;
-    #1;
-    if (imm_type !== 3'b011) $error("JAL Failed: imm_type expected 011, got %b", imm_type);
-    if (reg_write !== 1'b1) $error("JAL Failed: reg_write expected 1, got %b", reg_write);
-    if (result_source !== 2'b10)
-      $error("JAL Failed: result_source expected 10, got %b", result_source);
-    if (pc_src !== 1'b1) $error("JAL Failed: pc_src expected 1, got %b", pc_src);
-    $display("JAL Test Passed.");
-
-    $display("Test 7b: JALR Instruction (op_code=1100111)");
-    op_code = 7'b1100111;
-    zero = 0;
-    func3 = 3'b000;
-    func7 = 7'b0000000;
-    last_bit = 0;
-    #1
-
-    if (imm_type !== 3'b000) $error("JALR Failed: imm_type expected 000, got %b", imm_type);
-    if (mem_write !== 1'b0) $error("JALR Failed: mem_write expected 0, got %b", mem_write);
-    if (reg_write !== 1'b1) $error("JALR Failed: reg_write expected 1, got %b", reg_write);
-    if (result_source !== 2'b10)
-      $error("JALR Failed: result_source expected 10, got %b", result_source);
-    if (pc_src !== 1'b1) $error("JALR Failed: pc_src expected 1, got %b", pc_src);
-    if (addr_base_src !== 2'b10)
-      $error("JALR Failed: addr_base_src expected 10, got %b", addr_base_src);
-
-    $display("JALR Test Passed.");
-
-    
-
-    $display("Test 8: ADDI Instruction (op_code=0010011, func3=000)");
-    op_code = 7'b0010011;
-    func3   = 3'b000;
-    func7   = 7'b0;
-    #1;
-    if (alu_control !== 4'b0000)
-      $error("ADDI Failed: alu_control expected 0000, got %b", alu_control);
-    if (imm_type !== 3'b000) $error("ADDI Failed: imm_type expected 000, got %b", imm_type);
-    if (mem_write !== 1'b0) $error("ADDI Failed: mem_write expected 0, got %b", mem_write);
-    if (reg_write !== 1'b1) $error("ADDI Failed: reg_write expected 1, got %b", reg_write);
-    if (reg_write_gated !== 1'b1)
-      $error("ADDI Failed: reg_write_gated expected 1, got %b", reg_write_gated);
-    if (alu_source !== 1'b1) $error("ADDI Failed: alu_source expected 1, got %b", alu_source);
-    if (result_source !== 2'b00)
-      $error("ADDI Failed: result_source expected 00, got %b", result_source);
-    if (pc_src !== 1'b0) $error("ADDI Failed: pc_src expected 0, got %b", pc_src);
-    $display("ADDI Test Passed.");
-
-    $display("Test 9: LUI Instruction (op_code=0110111)");
-    op_code = 7'b0110111;
-    #1;
-    if (imm_type !== 3'b100) $error("LUI Failed: imm_type expected 100, got %b", imm_type);
-    if (reg_write !== 1'b1) $error("LUI Failed: reg_write expected 1, got %b", reg_write);
-    if (addr_base_src !== 2'b01)
-      $error("LUI Failed: addr_base_src expected 01, got %b", addr_base_src);
-    if (result_source !== 2'b11)
-      $error("LUI Failed: result_source expected 11, got %b", result_source);
-    $display("LUI Test Passed.");
-
-    $display("Test 10: AUIPC Instruction (op_code=0010111)");
-    op_code = 7'b0010111;
-    #1;
-    if (imm_type !== 3'b100) $error("AUIPC Failed: imm_type expected 100, got %b", imm_type);
-    if (addr_base_src !== 2'b00)
-      $error("AUIPC Failed: addr_base_src expected 00, got %b", addr_base_src);
-    if (result_source !== 2'b11)
-      $error("AUIPC Failed: result_source expected 11, got %b", result_source);
-    $display("AUIPC Test Passed.");
-
-    $display("Test 11: SLTI Instruction (op_code=0010011, func3=010)");
-    op_code = 7'b0010011;
-    func3   = 3'b010;
-    #1;
-    if (alu_control !== 4'b0101)
-      $error("SLTI Failed: alu_control expected 0101, got %b", alu_control);
-    if (reg_write !== 1'b1) $error("SLTI Failed: reg_write expected 1, got %b", reg_write);
-    if (reg_write_gated !== 1'b1)
-      $error("SLTI Failed: reg_write_gated expected 1, got %b", reg_write_gated);
-    $display("SLTI Test Passed.");
-
-    $display("Test 12: SLTIU Instruction (op_code=0010011, func3=011)");
-    op_code = 7'b0010011;
-    func3   = 3'b011;
-    #1;
-    if (alu_control !== 4'b0111)
-      $error("SLTIU Failed: alu_control expected 0111, got %b", alu_control);
-    if (reg_write !== 1'b1) $error("SLTIU Failed: reg_write expected 1, got %b", reg_write);
-    if (reg_write_gated !== 1'b1)
-      $error("SLTIU Failed: reg_write_gated expected 1, got %b", reg_write_gated);
-    $display("SLTIU Test Passed.");
-
-    $display("Test 13: XORI Instruction (op_code=0010011, func3=100)");
-    op_code = 7'b0010011;
-    func3   = 3'b100;
-    #1;
-    if (alu_control !== 4'b1000)
-      $error("XORI Failed: alu_control expected 1000, got %b", alu_control);
-    if (reg_write !== 1'b1) $error("XORI Failed: reg_write expected 1, got %b", reg_write);
-    if (reg_write_gated !== 1'b1)
-      $error("XORI Failed: reg_write_gated expected 1, got %b", reg_write_gated);
-    if (alu_source !== 1'b1) $error("XORI Failed: alu_source expected 1, got %b", alu_source);
-    $display("XORI Test Passed.");
-
-    $display("Test 14: ORI Instruction (op_code=0010011, func3=110)");
-    op_code = 7'b0010011;
-    func3   = 3'b110;
-    #1;
-    if (alu_control !== 4'b0011)
-      $error("ORI Failed: alu_control expected 0011, got %b", alu_control);
-    if (reg_write !== 1'b1) $error("ORI Failed: reg_write expected 1, got %b", reg_write);
-    if (reg_write_gated !== 1'b1)
-      $error("ORI Failed: reg_write_gated expected 1, got %b", reg_write_gated);
-    if (alu_source !== 1'b1) $error("ORI Failed: alu_source expected 1, got %b", alu_source);
-    $display("ORI Test Passed.");
-
-    $display("Test 15: ANDI Instruction (op_code=0010011, func3=111)");
-    op_code = 7'b0010011;
-    func3   = 3'b111;
-    #1;
-    if (alu_control !== 4'b0010)
-      $error("ANDI Failed: alu_control expected 0010, got %b", alu_control);
-    if (reg_write !== 1'b1) $error("ANDI Failed: reg_write expected 1, got %b", reg_write);
-    if (reg_write_gated !== 1'b1)
-      $error("ANDI Failed: reg_write_gated expected 1, got %b", reg_write_gated);
-    if (alu_source !== 1'b1) $error("ANDI Failed: alu_source expected 1, got %b", alu_source);
-    $display("ANDI Test Passed.");
-
-    $display("Test 16: SLLI (op_code=0010011, func3=001, func7=0000000)");
-    op_code = 7'b0010011;
-    func3   = 3'b001;
-    func7   = 7'b0000000;
-    #1;
-    if (alu_control !== 4'b0100)
-      $error("SLLI Failed: alu_control expected 0100, got %b", alu_control);
-    if (reg_write_gated !== 1'b1)
-      $error("SLLI Failed: reg_write_gated expected 1, got %b", reg_write_gated);
-    if (alu_source !== 1'b1) $error("SLLI Failed: alu_source expected 1, got %b", alu_source);
-    $display("SLLI Test Passed.");
-
-    $display("Test 17: SLLI invalid func7 - reg_write_gated must be 0");
-    op_code = 7'b0010011;
-    func3   = 3'b001;
-    func7   = 7'b0100000;
-    #1;
-    if (reg_write_gated !== 1'b0)
-      $error("SLLI Invalid func7 Failed: reg_write_gated expected 0, got %b", reg_write_gated);
-    $display("SLLI Invalid func7 Test Passed.");
-
-    $display("Test 18: SRLI (op_code=0010011, func3=101, func7=0000000)");
-    op_code = 7'b0010011;
-    func3   = 3'b101;
-    func7   = 7'b0000000;
-    #1;
-    if (alu_control !== 4'b0110)
-      $error("SRLI Failed: alu_control expected 0110, got %b", alu_control);
-    if (reg_write_gated !== 1'b1)
-      $error("SRLI Failed: reg_write_gated expected 1, got %b", reg_write_gated);
-    if (alu_source !== 1'b1) $error("SRLI Failed: alu_source expected 1, got %b", alu_source);
-    $display("SRLI Test Passed.");
-
-    $display("Test 19: SRAI (op_code=0010011, func3=101, func7=0100000)");
-    op_code = 7'b0010011;
-    func3   = 3'b101;
-    func7   = 7'b0100000;
-    #1;
-    if (alu_control !== 4'b1001)
-      $error("SRAI Failed: alu_control expected 1001, got %b", alu_control);
-    if (reg_write_gated !== 1'b1)
-      $error("SRAI Failed: reg_write_gated expected 1, got %b", reg_write_gated);
-    if (alu_source !== 1'b1) $error("SRAI Failed: alu_source expected 1, got %b", alu_source);
-    $display("SRAI Test Passed.");
-
-    $display("Test 20: SRL/SRA invalid func7 - reg_write_gated must be 0");
-    op_code = 7'b0010011;
-    func3   = 3'b101;
-    func7   = 7'b0000001;
-    #1;
-    if (reg_write_gated !== 1'b0)
-      $error("SRLI/SRAI Invalid func7 Failed: reg_write_gated expected 0, got %b", reg_write_gated);
-    $display("SRL/SRA Invalid func7 Test Passed.");
-
-    // -------------------------------------------------------
-    // B-TYPE TESTS
-    // -------------------------------------------------------
-
-    $display("Test 21.1: BNE not taken (zero=0 means not equal, but we want taken...)");
-    op_code  = 7'b1100011;
-    func3    = 3'b001;
-    zero     = 1'b1;
-    last_bit = 1'b0;
-    #1;
-    if (alu_control !== 4'b0001)
-      $error("BNE Failed: alu_control expected 0001, got %b", alu_control);
-    if (pc_src !== 1'b0) $error("BNE Failed: pc_src expected 0 (not taken), got %b", pc_src);
-
-    $display("Test 21.2: BNE taken");
-    zero = 1'b0;
-    #1;
-    if (pc_src !== 1'b1) $error("BNE Failed: pc_src expected 1 (taken), got %b", pc_src);
-    $display("BNE Test Passed.");
-
-    $display("Test 22.1: BLT not taken (src1 >= src2)");
-    op_code  = 7'b1100011;
-    func3    = 3'b100;
-    last_bit = 1'b0;
-    #1;
-    if (alu_control !== 4'b0101)
-      $error("BLT Failed: alu_control expected 0101, got %b", alu_control);
-    if (pc_src !== 1'b0) $error("BLT Failed: pc_src expected 0 (not taken), got %b", pc_src);
-
-    $display("Test 22.2: BLT taken (src1 < src2)");
-    last_bit = 1'b1;
-    #1;
-    if (pc_src !== 1'b1) $error("BLT Failed: pc_src expected 1 (taken), got %b", pc_src);
-    $display("BLT Test Passed.");
-
-    $display("Test 23.1: BGE not taken (src1 < src2)");
-    op_code  = 7'b1100011;
-    func3    = 3'b101;
-    last_bit = 1'b1;
-    #1;
-    if (alu_control !== 4'b0101)
-      $error("BGE Failed: alu_control expected 0101, got %b", alu_control);
-    if (pc_src !== 1'b0) $error("BGE Failed: pc_src expected 0 (not taken), got %b", pc_src);
-
-    $display("Test 23.2: BGE taken (src1 >= src2)");
-    last_bit = 1'b0;
-    #1;
-    if (pc_src !== 1'b1) $error("BGE Failed: pc_src expected 1 (taken), got %b", pc_src);
-    $display("BGE Test Passed.");
-
-    $display("Test 24.1: BLTU not taken (src1 >= src2 unsigned)");
-    op_code  = 7'b1100011;
-    func3    = 3'b110;
-    last_bit = 1'b0;
-    #1;
-    if (alu_control !== 4'b0111)
-      $error("BLTU Failed: alu_control expected 0111, got %b", alu_control);
-    if (pc_src !== 1'b0) $error("BLTU Failed: pc_src expected 0 (not taken), got %b", pc_src);
-
-    $display("Test 24.2: BLTU taken (src1 < src2 unsigned)");
-    last_bit = 1'b1;
-    #1;
-    if (pc_src !== 1'b1) $error("BLTU Failed: pc_src expected 1 (taken), got %b", pc_src);
-    $display("BLTU Test Passed.");
-
-    $display("Test 25.1: BGEU not taken (src1 < src2 unsigned)");
-    op_code  = 7'b1100011;
-    func3    = 3'b111;
-    last_bit = 1'b1;
-    #1;
-    if (alu_control !== 4'b0111)
-      $error("BGEU Failed: alu_control expected 0111, got %b", alu_control);
-    if (pc_src !== 1'b0) $error("BGEU Failed: pc_src expected 0 (not taken), got %b", pc_src);
-
-    $display("Test 25.2: BGEU taken (src1 >= src2 unsigned)");
-    last_bit = 1'b0;
-    #1;
-    if (pc_src !== 1'b1) $error("BGEU Failed: pc_src expected 1 (taken), got %b", pc_src);
-    $display("BGEU Test Passed.");
+    control_vec_t vec;
 
     $display("---------------------------------------");
-    $display("Control Unit Tests All Passed Successfully");
+    $display("Starting table-driven control verification");
     $display("---------------------------------------");
-    $finish;
+
+    vec = '{7'b0000011, 3'b010, 7'b0000000, 1'b0, 1'b0, 3'b000, 1'b0, 1'b1, 1'b1,
+            1'b1, 2'b01, 1'b0, 2'b00, 4'b0000, 1'b0, 1'b0, "LW"};
+    apply_and_check(vec);
+
+    vec = '{7'b0000011, 3'b111, 7'b0000000, 1'b0, 1'b0, 3'b000, 1'b0, 1'b0, 1'b0,
+            1'b1, 2'b01, 1'b0, 2'b00, 4'b0000, 1'b1, 1'b0, "invalid LOAD funct3"};
+    apply_and_check(vec);
+
+    vec = '{7'b0100011, 3'b010, 7'b0000000, 1'b0, 1'b0, 3'b001, 1'b1, 1'b0, 1'b0,
+            1'b1, 2'b00, 1'b0, 2'b00, 4'b0000, 1'b0, 1'b0, "SW"};
+    apply_and_check(vec);
+
+    vec = '{7'b0100011, 3'b101, 7'b0000000, 1'b0, 1'b0, 3'b001, 1'b0, 1'b0, 1'b0,
+            1'b1, 2'b00, 1'b0, 2'b00, 4'b0000, 1'b1, 1'b0, "invalid STORE funct3"};
+    apply_and_check(vec);
+
+    vec = '{7'b0110011, 3'b000, 7'b0000000, 1'b0, 1'b0, 3'b000, 1'b0, 1'b1, 1'b1,
+            1'b0, 2'b00, 1'b0, 2'b00, 4'b0000, 1'b0, 1'b0, "ADD"};
+    apply_and_check(vec);
+
+    vec = '{7'b0110011, 3'b000, 7'b0100000, 1'b0, 1'b0, 3'b000, 1'b0, 1'b1, 1'b1,
+            1'b0, 2'b00, 1'b0, 2'b00, 4'b0001, 1'b0, 1'b0, "SUB"};
+    apply_and_check(vec);
+
+    vec = '{7'b0110011, 3'b111, 7'b0000000, 1'b0, 1'b0, 3'b000, 1'b0, 1'b1, 1'b1,
+            1'b0, 2'b00, 1'b0, 2'b00, 4'b0010, 1'b0, 1'b0, "AND"};
+    apply_and_check(vec);
+
+    vec = '{7'b0110011, 3'b110, 7'b0000000, 1'b0, 1'b0, 3'b000, 1'b0, 1'b1, 1'b1,
+            1'b0, 2'b00, 1'b0, 2'b00, 4'b0011, 1'b0, 1'b0, "OR"};
+    apply_and_check(vec);
+
+    vec = '{7'b0110011, 3'b000, 7'b0000001, 1'b0, 1'b0, 3'b000, 1'b0, 1'b1, 1'b0,
+            1'b0, 2'b00, 1'b0, 2'b00, 4'b1111, 1'b1, 1'b0, "invalid R-type funct7"};
+    apply_and_check(vec);
+
+    vec = '{7'b0010011, 3'b000, 7'b0000000, 1'b0, 1'b0, 3'b000, 1'b0, 1'b1, 1'b1,
+            1'b1, 2'b00, 1'b0, 2'b00, 4'b0000, 1'b0, 1'b0, "ADDI"};
+    apply_and_check(vec);
+
+    vec = '{7'b0010011, 3'b001, 7'b0000000, 1'b0, 1'b0, 3'b000, 1'b0, 1'b1, 1'b1,
+            1'b1, 2'b00, 1'b0, 2'b00, 4'b0100, 1'b0, 1'b0, "SLLI"};
+    apply_and_check(vec);
+
+    vec = '{7'b0010011, 3'b001, 7'b0100000, 1'b0, 1'b0, 3'b000, 1'b0, 1'b1, 1'b0,
+            1'b1, 2'b00, 1'b0, 2'b00, 4'b1111, 1'b1, 1'b0, "invalid SLLI funct7"};
+    apply_and_check(vec);
+
+    vec = '{7'b0010011, 3'b101, 7'b0000000, 1'b0, 1'b0, 3'b000, 1'b0, 1'b1, 1'b1,
+            1'b1, 2'b00, 1'b0, 2'b00, 4'b0110, 1'b0, 1'b0, "SRLI"};
+    apply_and_check(vec);
+
+    vec = '{7'b0010011, 3'b101, 7'b0100000, 1'b0, 1'b0, 3'b000, 1'b0, 1'b1, 1'b1,
+            1'b1, 2'b00, 1'b0, 2'b00, 4'b1001, 1'b0, 1'b0, "SRAI"};
+    apply_and_check(vec);
+
+    vec = '{7'b0110111, 3'b000, 7'b0000000, 1'b0, 1'b0, 3'b100, 1'b0, 1'b1, 1'b1,
+            1'b0, 2'b11, 1'b0, 2'b01, 4'b0000, 1'b0, 1'b0, "LUI"};
+    apply_and_check(vec);
+
+    vec = '{7'b0010111, 3'b000, 7'b0000000, 1'b0, 1'b0, 3'b100, 1'b0, 1'b1, 1'b1,
+            1'b0, 2'b11, 1'b0, 2'b00, 4'b0000, 1'b0, 1'b0, "AUIPC"};
+    apply_and_check(vec);
+
+    vec = '{7'b1101111, 3'b000, 7'b0000000, 1'b0, 1'b0, 3'b011, 1'b0, 1'b1, 1'b1,
+            1'b0, 2'b10, 1'b1, 2'b00, 4'b0000, 1'b0, 1'b0, "JAL"};
+    apply_and_check(vec);
+
+    vec = '{7'b1100111, 3'b000, 7'b0000000, 1'b0, 1'b0, 3'b000, 1'b0, 1'b1, 1'b1,
+            1'b0, 2'b10, 1'b1, 2'b10, 4'b0000, 1'b0, 1'b0, "JALR"};
+    apply_and_check(vec);
+
+    vec = '{7'b1100111, 3'b001, 7'b0000000, 1'b0, 1'b0, 3'b000, 1'b0, 1'b0, 1'b0,
+            1'b0, 2'b00, 1'b0, 2'b00, 4'b0000, 1'b1, 1'b0, "invalid JALR funct3"};
+    apply_and_check(vec);
+
+    vec = '{7'b1100011, 3'b000, 7'b0000000, 1'b1, 1'b0, 3'b010, 1'b0, 1'b0, 1'b0,
+            1'b0, 2'b00, 1'b1, 2'b00, 4'b0001, 1'b0, 1'b1, "BEQ taken"};
+    apply_and_check(vec);
+
+    vec = '{7'b1100011, 3'b000, 7'b0000000, 1'b0, 1'b0, 3'b010, 1'b0, 1'b0, 1'b0,
+            1'b0, 2'b00, 1'b0, 2'b00, 4'b0001, 1'b0, 1'b1, "BEQ not taken"};
+    apply_and_check(vec);
+
+    vec = '{7'b1100011, 3'b001, 7'b0000000, 1'b0, 1'b0, 3'b010, 1'b0, 1'b0, 1'b0,
+            1'b0, 2'b00, 1'b1, 2'b00, 4'b0001, 1'b0, 1'b1, "BNE taken"};
+    apply_and_check(vec);
+
+    vec = '{7'b1100011, 3'b100, 7'b0000000, 1'b0, 1'b1, 3'b010, 1'b0, 1'b0, 1'b0,
+            1'b0, 2'b00, 1'b1, 2'b00, 4'b0101, 1'b0, 1'b1, "BLT taken"};
+    apply_and_check(vec);
+
+    vec = '{7'b1100011, 3'b101, 7'b0000000, 1'b0, 1'b0, 3'b010, 1'b0, 1'b0, 1'b0,
+            1'b0, 2'b00, 1'b1, 2'b00, 4'b0101, 1'b0, 1'b1, "BGE taken"};
+    apply_and_check(vec);
+
+    vec = '{7'b1100011, 3'b110, 7'b0000000, 1'b0, 1'b1, 3'b010, 1'b0, 1'b0, 1'b0,
+            1'b0, 2'b00, 1'b1, 2'b00, 4'b0111, 1'b0, 1'b1, "BLTU taken"};
+    apply_and_check(vec);
+
+    vec = '{7'b1100011, 3'b111, 7'b0000000, 1'b0, 1'b0, 3'b010, 1'b0, 1'b0, 1'b0,
+            1'b0, 2'b00, 1'b1, 2'b00, 4'b0111, 1'b0, 1'b1, "BGEU taken"};
+    apply_and_check(vec);
+
+    finish_report();
   end
 endmodule
-
