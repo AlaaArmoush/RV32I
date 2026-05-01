@@ -1,4 +1,5 @@
 `timescale 1ns / 1ps
+
 module cpu_tb;
   logic clk;
   logic rst_n;
@@ -8,532 +9,515 @@ module cpu_tb;
       .rst_n(rst_n)
   );
 
+  // ------------------------------------------------------------
+  // Verification state
+  // ------------------------------------------------------------
+  int error_count = 0;
+  int total_checks = 0;
+  int passed_checks = 0;
+  int reg_checks = 0;
+  int mem_checks = 0;
+  int pc_checks = 0;
+  int coverage_points = 0;
+  int coverage_hits = 0;
+
+  logic [31:0] exp_regs[32];
+  logic [31:0] exp_mem[64];
+  logic [31:0] exp_pc;
+
+  int seen_lw = 0;
+  int seen_sw = 0;
+  int seen_sb = 0;
+  int seen_sh = 0;
+  int seen_lb = 0;
+  int seen_lh = 0;
+  int seen_lbu = 0;
+  int seen_lhu = 0;
+  int seen_branch_taken = 0;
+  int seen_branch_not_taken = 0;
+  int seen_jal = 0;
+  int seen_jalr = 0;
+
+  // ------------------------------------------------------------
+  // Clock
+  // ------------------------------------------------------------
   initial begin
     clk = 1'b0;
     forever #0.5 clk = ~clk;
   end
 
-  task cpu_reset;
-    begin
-      $display("-> Applying Reset");
-      rst_n = 1'b0;
-
-      @(posedge clk);
-      #1ps;
-
-      rst_n = 1'b1;
-      #1ps;
-
-      $display("-> Reset Complete. PC is 0x%h", dut.pc);
+  // ------------------------------------------------------------
+  // Generic self-checking helpers
+  // ------------------------------------------------------------
+  task automatic check_eq32(
+      input string label,
+      input logic [31:0] got,
+      input logic [31:0] expected
+  );
+    total_checks++;
+    if (got !== expected) begin
+      $error("%s failed: expected 0x%08h, got 0x%08h", label, expected, got);
+      error_count++;
+    end else begin
+      passed_checks++;
     end
   endtask
 
+  task automatic print_scoreboard_summary();
+    $display("---------------------------------------");
+    $display("Scoreboard summary");
+    $display("  Register comparisons : %0d", reg_checks);
+    $display("  Memory comparisons   : %0d", mem_checks);
+    $display("  PC comparisons       : %0d", pc_checks);
+    $display("  Total checks         : %0d", total_checks);
+    $display("  Passed checks        : %0d", passed_checks);
+    $display("  Failed checks        : %0d", error_count);
+  endtask
 
+  task automatic print_coverage_summary();
+    $display("---------------------------------------");
+    $display("Coverage summary");
+    $display("  lw                  : %0d", seen_lw);
+    $display("  sw                  : %0d", seen_sw);
+    $display("  sb                  : %0d", seen_sb);
+    $display("  sh                  : %0d", seen_sh);
+    $display("  lb                  : %0d", seen_lb);
+    $display("  lh                  : %0d", seen_lh);
+    $display("  lbu                 : %0d", seen_lbu);
+    $display("  lhu                 : %0d", seen_lhu);
+    $display("  branch taken        : %0d", seen_branch_taken);
+    $display("  branch not taken    : %0d", seen_branch_not_taken);
+    $display("  jal                 : %0d", seen_jal);
+    $display("  jalr                : %0d", seen_jalr);
+    $display("  Coverage hit points : %0d/%0d", coverage_hits, coverage_points);
+  endtask
+
+  task automatic finish_report(input string tb_name);
+    print_scoreboard_summary();
+    print_coverage_summary();
+
+    if (error_count == 0) begin
+      $display("---------------------------------------");
+      $display("%s PASSED", tb_name);
+      $display("---------------------------------------");
+      $finish;
+    end else begin
+      $fatal(1, "%s FAILED with %0d error(s)", tb_name, error_count);
+    end
+  endtask
+
+  // ------------------------------------------------------------
+  // CPU-specific check helpers
+  // ------------------------------------------------------------
+  task automatic check_pc(input logic [31:0] expected, input string label);
+    pc_checks++;
+    check_eq32({label, " PC"}, dut.pc, expected);
+  endtask
+
+  task automatic check_reg(
+      input int reg_id,
+      input logic [31:0] expected,
+      input string label
+  );
+    reg_checks++;
+    check_eq32($sformatf("%s x%0d", label, reg_id),
+               dut.regfile_u.registers[reg_id],
+               expected);
+  endtask
+
+  task automatic check_mem_word(
+      input int word_index,
+      input logic [31:0] expected,
+      input string label
+  );
+    mem_checks++;
+    check_eq32($sformatf("%s mem[%0d]", label, word_index),
+               dut.dmemory.mem[word_index],
+               expected);
+  endtask
+
+  task automatic step_cpu(input string label);
+    @(posedge clk);
+    #1ps;
+    $display("Executed: %-35s PC=0x%08h", label, dut.pc);
+  endtask
+
+  // ------------------------------------------------------------
+  // Scoreboard helpers
+  // ------------------------------------------------------------
+  task automatic scoreboard_reset();
+    for (int i = 0; i < 32; i++) begin
+      exp_regs[i] = 32'b0;
+    end
+
+    for (int i = 0; i < 64; i++) begin
+      exp_mem[i] = dut.dmemory.mem[i];
+    end
+
+    exp_pc = 32'b0;
+  endtask
+
+  task automatic expect_reg(input int reg_id, input logic [31:0] value);
+    if (reg_id != 0) begin
+      exp_regs[reg_id] = value;
+    end
+    exp_regs[0] = 32'b0;
+  endtask
+
+  task automatic expect_mem(input int word_index, input logic [31:0] value);
+    exp_mem[word_index] = value;
+  endtask
+
+  task automatic expect_pc(input logic [31:0] value);
+    exp_pc = value;
+  endtask
+
+  task automatic compare_reg(input int reg_id, input string label);
+    check_reg(reg_id, exp_regs[reg_id], label);
+  endtask
+
+  task automatic compare_mem(input int word_index, input string label);
+    check_mem_word(word_index, exp_mem[word_index], label);
+  endtask
+
+  task automatic compare_pc(input string label);
+    check_pc(exp_pc, label);
+  endtask
+
+  // ------------------------------------------------------------
+  // Reset
+  // ------------------------------------------------------------
+  task automatic reset_cpu();
+    $display("---------------------------------------");
+    $display("Applying reset");
+    $display("---------------------------------------");
+
+    rst_n = 1'b0;
+    @(posedge clk);
+    #1ps;
+
+    rst_n = 1'b1;
+    #1ps;
+
+    check_pc(32'h00000000, "Reset");
+    scoreboard_reset();
+  endtask
+
+  // ------------------------------------------------------------
+  // Coverage check
+  // ------------------------------------------------------------
+  task automatic check_seen(input string name, input int count);
+    coverage_points++;
+    if (count == 0) begin
+      $error("Coverage missing: %s", name);
+      error_count++;
+    end else begin
+      coverage_hits++;
+    end
+  endtask
+
+  task automatic check_cpu_coverage();
+    check_seen("lw", seen_lw);
+    check_seen("sw", seen_sw);
+    check_seen("sb", seen_sb);
+    check_seen("sh", seen_sh);
+    check_seen("lb", seen_lb);
+    check_seen("lh", seen_lh);
+    check_seen("lbu", seen_lbu);
+    check_seen("lhu", seen_lhu);
+    check_seen("branch taken", seen_branch_taken);
+    check_seen("branch not taken", seen_branch_not_taken);
+    check_seen("jal", seen_jal);
+    check_seen("jalr", seen_jalr);
+  endtask
+
+  // ------------------------------------------------------------
+  // Feature verification sections
+  // ------------------------------------------------------------
+
+  task automatic verify_word_load_store_and_basic_alu();
+    $display("---------------------------------------");
+    $display("Verifying word load/store and basic ALU");
+    $display("---------------------------------------");
+
+    step_cpu("lw x18, 12(x0)");
+    seen_lw++;
+    expect_reg(18, 32'hABCDEF11);
+    compare_reg(18, "LW x18");
+
+    step_cpu("sw x18, 16(x0)");
+    seen_sw++;
+    expect_mem(4, 32'hABCDEF11);
+    compare_mem(4, "SW x18");
+
+    step_cpu("lw x17, 20(x0)");
+    seen_lw++;
+    expect_reg(17, 32'h12345678);
+    compare_reg(17, "LW x17");
+
+    step_cpu("add x19, x18, x17");
+    expect_reg(19, 32'hBE024589);
+    compare_reg(19, "ADD x19");
+
+    step_cpu("and x21, x18, x19");
+    expect_reg(21, 32'hAA004501);
+    compare_reg(21, "AND x21");
+
+    step_cpu("lw x5, 24(x0)");
+    seen_lw++;
+    expect_reg(5, 32'h125F552D);
+    compare_reg(5, "LW x5");
+
+    step_cpu("lw x6, 28(x0)");
+    seen_lw++;
+    expect_reg(6, 32'h7F4FD46A);
+    compare_reg(6, "LW x6");
+
+    step_cpu("or x7, x5, x6");
+    expect_reg(7, 32'h7F5FD56F);
+    compare_reg(7, "OR x7");
+
+    step_cpu("nop");
+    expect_pc(32'h00000024);
+    compare_pc("NOP");
+  endtask
+
+  task automatic verify_branches();
+    $display("---------------------------------------");
+    $display("Verifying branches");
+    $display("---------------------------------------");
+
+    step_cpu("beq x6, x7, 12 not taken");
+    seen_branch_not_taken++;
+    expect_pc(32'h00000028);
+    compare_pc("BEQ not taken");
+
+    step_cpu("lw x22, 8(x0)");
+    seen_lw++;
+    expect_reg(22, 32'hABCDEF11);
+    compare_reg(22, "LW x22");
+
+    step_cpu("beq x18, x22, 16 taken");
+    seen_branch_taken++;
+    expect_pc(32'h0000003C);
+    compare_pc("BEQ taken");
+
+    step_cpu("lw x22, 0(x0)");
+    seen_lw++;
+    expect_reg(22, 32'hAEAEAEAE);
+    compare_reg(22, "LW x22 loop body");
+
+    step_cpu("beq x22, x22, -8 taken");
+    seen_branch_taken++;
+    expect_pc(32'h00000038);
+    compare_pc("BEQ backward taken");
+
+    step_cpu("beq x0, x0, 12 taken");
+    seen_branch_taken++;
+    expect_pc(32'h00000044);
+    compare_pc("BEQ jump out");
+
+    step_cpu("nop");
+    expect_pc(32'h00000048);
+    compare_pc("Post-BEQ NOP");
+  endtask
+
+  task automatic verify_jal();
+    $display("---------------------------------------");
+    $display("Verifying JAL");
+    $display("---------------------------------------");
+
+    step_cpu("jal x1, 12");
+    seen_jal++;
+    expect_pc(32'h00000054);
+    expect_reg(1, 32'h0000004C);
+    compare_pc("JAL forward");
+    compare_reg(1, "JAL forward link");
+
+    step_cpu("jal x1, -4");
+    seen_jal++;
+    expect_pc(32'h00000050);
+    expect_reg(1, 32'h00000058);
+    compare_pc("JAL backward");
+    compare_reg(1, "JAL backward link");
+
+    step_cpu("jal x1, 12");
+    seen_jal++;
+    expect_pc(32'h0000005C);
+    expect_reg(1, 32'h00000054);
+    compare_pc("JAL jump out");
+    compare_reg(1, "JAL jump out link");
+  endtask
+
+  task automatic verify_immediates_and_compare_ops();
+    $display("---------------------------------------");
+    $display("Verifying immediates and compares");
+    $display("---------------------------------------");
+
+    step_cpu("lw x7, 12(x0)");
+    seen_lw++;
+    expect_reg(7, 32'hABCDEF11);
+    compare_reg(7, "Post-JAL LW x7");
+
+    step_cpu("nop");
+    expect_pc(32'h00000064);
+    compare_pc("Post-JAL NOP");
+
+    step_cpu("lw x18, 0(x0)");
+    seen_lw++;
+    expect_reg(18, 32'hAEAEAEAE);
+    compare_reg(18, "ADDI prep LW x18");
+
+    step_cpu("addi x23, x18, 0x0BC");
+    expect_reg(23, 32'hAEAEAF6A);
+    compare_reg(23, "ADDI x23");
+
+    step_cpu("nop");
+
+    step_cpu("auipc x5, 0x12345");
+    expect_reg(5, 32'h12345070);
+    compare_reg(5, "AUIPC x5");
+
+    step_cpu("lui x5, 0xABCDE");
+    expect_reg(5, 32'hABCDE000);
+    compare_reg(5, "LUI x5");
+
+    step_cpu("nop");
+
+    step_cpu("slti x21, x18, 100");
+    expect_reg(21, 32'h00000001);
+    compare_reg(21, "SLTI x21");
+
+    step_cpu("nop");
+
+    step_cpu("sltiu x22, x18, 0xfff");
+    expect_reg(22, 32'h00000001);
+    compare_reg(22, "SLTIU x22");
+
+    step_cpu("nop");
+
+    step_cpu("xor x8, x18, x23");
+    expect_reg(8, 32'h000001C4);
+    compare_reg(8, "XOR x8");
+
+    step_cpu("nop");
+  endtask
+
+  task automatic verify_blt_and_jalr();
+    $display("---------------------------------------");
+    $display("Verifying BLT and JALR");
+    $display("---------------------------------------");
+
+    step_cpu("blt x17, x18, 8 not taken");
+    seen_branch_not_taken++;
+    expect_pc(32'h00000098);
+    compare_pc("BLT not taken");
+
+    step_cpu("blt x18, x17, 8 taken");
+    seen_branch_taken++;
+    expect_pc(32'h000000A0);
+    compare_pc("BLT taken");
+    compare_reg(8, "BLT poison check");
+
+    step_cpu("nop at 0xA0");
+    expect_pc(32'h000000A4);
+    compare_pc("JALR setup NOP");
+
+    step_cpu("addi x7, x0, 0x0C0");
+    expect_reg(7, 32'h000000C0);
+    compare_reg(7, "JALR base");
+
+    step_cpu("jalr x1, -11(x7)");
+    seen_jalr++;
+    expect_pc(32'h000000B4);
+    expect_reg(1, 32'h000000AC);
+    compare_pc("JALR aligned target");
+    compare_reg(1, "JALR link");
+    compare_reg(8, "JALR poison check");
+
+    step_cpu("addi x9, x0, 5");
+    expect_reg(9, 32'h00000005);
+    compare_reg(9, "JALR landing");
+  endtask
+
+  task automatic verify_partial_stores();
+    $display("---------------------------------------");
+    $display("Verifying SB/SH stores");
+    $display("---------------------------------------");
+
+    step_cpu("sw x0, 32(x0)");
+    seen_sw++;
+    expect_mem(8, 32'h00000000);
+    compare_mem(8, "clear partial-store word");
+
+    step_cpu("sb x17, 33(x0)");
+    seen_sb++;
+    expect_mem(8, 32'h00007800);
+    compare_mem(8, "SB lane 1");
+
+    step_cpu("sb x23, 35(x0)");
+    seen_sb++;
+    expect_mem(8, 32'h6A007800);
+    compare_mem(8, "SB lane 3");
+
+    step_cpu("sh x17, 36(x0)");
+    seen_sh++;
+    expect_mem(9, 32'h00005678);
+    compare_mem(9, "SH lower half");
+
+    step_cpu("sh x18, 38(x0)");
+    seen_sh++;
+    expect_mem(9, 32'hAEAE5678);
+    compare_mem(9, "SH upper half");
+  endtask
+
+  task automatic verify_partial_loads();
+    $display("---------------------------------------");
+    $display("Verifying LB/LH/LBU/LHU loads");
+    $display("---------------------------------------");
+
+    step_cpu("lb x24, 33(x0)");
+    seen_lb++;
+    expect_reg(24, 32'h00000078);
+    compare_reg(24, "LB x24");
+
+    step_cpu("lbu x25, 35(x0)");
+    seen_lbu++;
+    expect_reg(25, 32'h0000006A);
+    compare_reg(25, "LBU x25");
+
+    step_cpu("lh x26, 38(x0)");
+    seen_lh++;
+    expect_reg(26, 32'hFFFFAEAE);
+    compare_reg(26, "LH x26 sign extend");
+
+    step_cpu("lhu x27, 38(x0)");
+    seen_lhu++;
+    expect_reg(27, 32'h0000AEAE);
+    compare_reg(27, "LHU x27 zero extend");
+
+    step_cpu("lh x28, 36(x0)");
+    seen_lh++;
+    expect_reg(28, 32'h00005678);
+    compare_reg(28, "LH x28 positive");
+  endtask
+
+  // ------------------------------------------------------------
+  // Main test
+  // ------------------------------------------------------------
   initial begin
-    $display("---------------------------------------");
-    $display("Starting CPU LW Test (x18 = MEM[x0 + 12])");
-    $display("---------------------------------------");
-    cpu_reset();
-    if (dut.pc !== 32'h0000_0000) $error("Initial PC Mismatch: Expected 0, Got %h", dut.pc);
-    @(posedge clk);
+    reset_cpu();
 
-    @(posedge clk);
-    $display("Cycle 1: LW executed");
-    if (dut.regfile_u.registers[18] !== 32'hABCDEF11) begin
-      $error("LW Test Failed! x18 expected 0xABCDEF11, Got 0x%h", dut.regfile_u.registers[18]);
-    end else begin
-      $display("LW Test Passed: Register x18 = 0x%h (Expected 0xABCDEF11)",
-               dut.regfile_u.registers[18]);
-    end
+    verify_word_load_store_and_basic_alu();
+    verify_branches();
+    verify_jal();
+    verify_immediates_and_compare_ops();
+    verify_blt_and_jalr();
+    verify_partial_stores();
+    verify_partial_loads();
 
-    $display("---------------------------------------");
-    $display("Starting CPU SW Test (MEM[x0 + 16] = x18)");
-    $display("---------------------------------------");
-    if (dut.dmemory.mem[4] !== 32'hF2F2F2F2)
-      $error("Pre-test failed: Expected 0xF2F2F2F2, Got %h", dut.dmemory.mem[4]);
-
-    @(posedge clk);
-    $display("Cycle 2: SW expected");
-    if (dut.dmemory.mem[4] !== 32'hABCDEF11) begin
-      $error("SW Fail: Mem[4]=%h, Expected ABCDEF11", dut.dmemory.mem[4]);
-    end else begin
-      $display("SW Test Passed: Mem[4] = 0x%h (Expected 0xABCDEF11)", dut.dmemory.mem[4]);
-    end
-
-    $display("---------------------------------------");
-    $display("Starting CPU LW Test 2 (x17 = MEM[x0 + 20])");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 3: LW executed");
-    if (dut.regfile_u.registers[17] !== 32'h12345678) begin
-      $error("LW Test 2 Failed! x17 expected 0x12345678, Got 0x%h", dut.regfile_u.registers[17]);
-    end else begin
-      $display("LW Test 2 Passed: Register x17 = 0x%h (Expected 0x12345678)",
-               dut.regfile_u.registers[17]);
-    end
-
-    $display("---------------------------------------");
-    $display("Starting CPU ADD Test (x19 = x18 + x17)");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 4: ADD executed");
-    if (dut.regfile_u.registers[19] !== 32'hBE024589) begin
-      $error("ADD Test Failed! x19 expected 0xBE024589, Got 0x%h", dut.regfile_u.registers[19]);
-    end else begin
-      $display("ADD Test Passed: Register x19 = 0x%h (Expected 0xBE024589)",
-               dut.regfile_u.registers[19]);
-    end
-
-    $display("---------------------------------------");
-    $display("Starting CPU AND Test (x21 = x18 & x19)");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 5: AND executed");
-    if (dut.regfile_u.registers[21] !== 32'hAA004501) begin
-      $error("AND Test Failed! x21 expected 0xAA004501, Got 0x%h", dut.regfile_u.registers[21]);
-    end else begin
-      $display("AND Test Passed: Register x21 = 0x%h (Expected 0xAA004501)",
-               dut.regfile_u.registers[21]);
-    end
-
-    $display("---------------------------------------");
-    $display("Starting CPU LW Test 3 (x5 = MEM[x0 + 24])");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 6: LW executed");
-    if (dut.regfile_u.registers[5] !== 32'h125F552D) begin
-      $error("LW Test 3 Failed! x5 expected 0x125F552D, Got 0x%h", dut.regfile_u.registers[5]);
-    end else begin
-      $display("LW Test 3 Passed: Register x5 = 0x%h (Expected 0x125F552D)",
-               dut.regfile_u.registers[5]);
-    end
-
-    $display("---------------------------------------");
-    $display("Starting CPU LW Test 4 (x6 = MEM[x0 + 28])");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 7: LW executed");
-    if (dut.regfile_u.registers[6] !== 32'h7F4FD46A) begin
-      $error("LW Test 4 Failed! x6 expected 0x7F4FD46A, Got 0x%h", dut.regfile_u.registers[6]);
-    end else begin
-      $display("LW Test 4 Passed: Register x6 = 0x%h (Expected 0x7F4FD46A)",
-               dut.regfile_u.registers[6]);
-    end
-
-    $display("---------------------------------------");
-    $display("Starting CPU OR Test (x7 = x5 | x6)");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 8: OR executed");
-    if (dut.regfile_u.registers[7] !== 32'h7F5FD56F) begin
-      $error("OR Test Failed! x7 expected 0x7F5FD56F, Got 0x%h", dut.regfile_u.registers[7]);
-    end else begin
-      $display("OR Test Passed: Register x7 = 0x%h (Expected 0x7F5FD56F)",
-               dut.regfile_u.registers[7]);
-    end
-
-    $display("---------------------------------------");
-    $display("Starting CPU NOP Test");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 9: NOP executed (PC should advance by 4)");
-    if (dut.pc !== 32'h00000024) begin
-      $error("NOP Test Failed! PC expected 0x00000024, Got 0x%h", dut.pc);
-    end else begin
-      $display("NOP Test Passed: PC = 0x%h (Expected 0x00000024)", dut.pc);
-    end
-
-    $display("---------------------------------------");
-    $display("Starting CPU BEQ Test 1 (Not Taken: beq x6, x7, 12)");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 10: BEQ executed (x6=0x%h, x7=0x%h)", dut.regfile_u.registers[6],
-             dut.regfile_u.registers[7]);
-    if (dut.pc !== 32'h00000028) begin
-      $error("BEQ Test 1 Failed! PC expected 0x00000028 (Not Taken), Got 0x%h", dut.pc);
-    end else begin
-      $display("BEQ Test 1 Passed: PC = 0x%h (Branch Not Taken)", dut.pc);
-    end
-
-    $display("---------------------------------------");
-    $display("Starting CPU LW Test 5 (x22 = MEM[x0 + 8])");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 11: LW executed (Setup for BEQ Test 2)");
-    if (dut.regfile_u.registers[22] !== 32'hABCDEF11) begin
-      $error("LW Test 5 Failed! x22 expected 0xABCDEF11, Got 0x%h", dut.regfile_u.registers[22]);
-    end else begin
-      $display("LW Test 5 Passed: Register x22 = 0x%h (Expected 0xABCDEF11)",
-               dut.regfile_u.registers[22]);
-    end
-
-    $display("---------------------------------------");
-    $display("Starting CPU BEQ Test 2 (Taken: beq x18, x22, 16)");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 12: BEQ executed (x18=0x%h, x22=0x%h)", dut.regfile_u.registers[18],
-             dut.regfile_u.registers[22]);
-    if (dut.pc !== 32'h0000003C) begin
-      $error("BEQ Test 2 Failed! PC expected 0x0000003C (Taken), Got 0x%h", dut.pc);
-    end else begin
-      $display("BEQ Test 2 Passed: PC = 0x%h (Branch Taken)", dut.pc);
-    end
-
-    $display("---------------------------------------");
-    $display("Starting CPU LW Test 6 (x22 = MEM[x0 + 0])");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 13: LW executed");
-    if (dut.regfile_u.registers[22] !== 32'hAEAEAEAE) begin
-      $error("LW Test 6 Failed! x22 expected 0xAEAEAEAE, Got 0x%h", dut.regfile_u.registers[22]);
-    end else begin
-      $display("LW Test 6 Passed: Register x22 = 0x%h (Expected 0xAEAEAEAE)",
-               dut.regfile_u.registers[22]);
-    end
-
-    $display("---------------------------------------");
-    $display("Starting CPU BEQ Test 3 (Backward Branch: beq x22, x22, -8)");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 14: BEQ executed (x22=0x%h, x22=0x%h)", dut.regfile_u.registers[22],
-             dut.regfile_u.registers[22]);
-    if (dut.pc !== 32'h00000038) begin
-      $error("BEQ Test 3 Failed! PC expected 0x00000038 (Backward Branch), Got 0x%h", dut.pc);
-    end else begin
-      $display("BEQ Test 3 Passed: PC = 0x%h (Backward Branch Taken)", dut.pc);
-    end
-
-    $display("---------------------------------------");
-    $display("Starting CPU BEQ Test 4 (Jump Out: beq x0, x0, 12)");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 15: BEQ executed (x0=0x%h, x0=0x%h)", dut.regfile_u.registers[0],
-             dut.regfile_u.registers[0]);
-    if (dut.pc !== 32'h00000044) begin
-      $error("BEQ Test 4 Failed! PC expected 0x00000044 (Jump Out), Got 0x%h", dut.pc);
-    end else begin
-      $display("BEQ Test 4 Passed: PC = 0x%h (Jump Out of Loop)", dut.pc);
-    end
-
-    $display("---------------------------------------");
-    $display("Starting CPU NOP Test 2");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 16: NOP executed (PC should advance by 4)");
-    if (dut.pc !== 32'h00000048) begin
-      $error("NOP Test 2 Failed! PC expected 0x00000048, Got 0x%h", dut.pc);
-    end else begin
-      $display("NOP Test 2 Passed: PC = 0x%h (Expected 0x00000048)", dut.pc);
-    end
-
-    $display("---------------------------------------");
-    $display("Starting CPU JAL Test 1 (Forward Jump: jal x1, 12)");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 17: JAL executed (Target PC = 0x48 + 12 = 0x54)");
-    if (dut.pc !== 32'h00000054) begin
-      $error("JAL Test 1 Failed! PC expected 0x00000054, Got 0x%h", dut.pc);
-    end else begin
-      $display("JAL Test 1 PC Passed: PC = 0x%h (Expected 0x00000054)", dut.pc);
-    end
-    if (dut.regfile_u.registers[1] !== 32'h0000004C) begin
-      $error("JAL Test 1 Link Failed! x1 expected 0x0000004C, Got 0x%h",
-             dut.regfile_u.registers[1]);
-    end else begin
-      $display("JAL Test 1 Link Passed: Register x1 = 0x%h (Expected 0x0000004C)",
-               dut.regfile_u.registers[1]);
-    end
-
-    $display("---------------------------------------");
-    $display("Starting CPU JAL Test 2 (Backward Jump: jal x1, -4)");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 18: JAL executed (Target PC = 0x54 - 4 = 0x50)");
-    if (dut.pc !== 32'h00000050) begin
-      $error("JAL Test 2 Failed! PC expected 0x00000050, Got 0x%h", dut.pc);
-    end else begin
-      $display("JAL Test 2 PC Passed: PC = 0x%h (Expected 0x00000050)", dut.pc);
-    end
-    if (dut.regfile_u.registers[1] !== 32'h00000058) begin
-      $error("JAL Test 2 Link Failed! x1 expected 0x00000058, Got 0x%h",
-             dut.regfile_u.registers[1]);
-    end else begin
-      $display("JAL Test 2 Link Passed: Register x1 = 0x%h (Expected 0x00000058)",
-               dut.regfile_u.registers[1]);
-    end
-
-
-    $display("---------------------------------------");
-    $display("Starting CPU JAL Test 3 (Jump Out: jal x1, 12)");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 19: JAL executed (Target PC = 0x50 + 12 = 0x5C)");
-    if (dut.pc !== 32'h0000005C) begin
-      $error("JAL Test 3 Failed! PC expected 0x0000005C, Got 0x%h", dut.pc);
-    end else begin
-      $display("JAL Test 3 Passed: PC = 0x%h (Jump Out of Loop)", dut.pc);
-    end
-
-    $display("---------------------------------------");
-    $display("Starting CPU LW Test 7 (Post-JAL: x7 = MEM[x0 + 12])");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 20: LW executed");
-    if (dut.regfile_u.registers[7] !== 32'hABCDEF11) begin
-      $error("LW Test 7 Failed! x7 expected 0xABCDEF11, Got 0x%h", dut.regfile_u.registers[7]);
-    end else begin
-      $display("LW Test 7 Passed: Register x7 = 0x%h (Expected 0xABCDEF11)",
-               dut.regfile_u.registers[7]);
-    end
-
-    $display("---------------------------------------");
-    $display("Starting CPU NOP Test 3");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 21: NOP executed (PC should advance by 4)");
-    if (dut.pc !== 32'h00000064) begin
-      $error("NOP Test 3 Failed! PC expected 0x00000064, Got 0x%h", dut.pc);
-    end else begin
-      $display("NOP Test 3 Passed: PC = 0x%h (Expected 0x00000064)", dut.pc);
-    end
-
-    $display("---------------------------------------");
-    $display("Starting CPU LW Test 8 (ADDI Prep: x18 = MEM[x0 + 0])");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 22: LW executed");
-    if (dut.regfile_u.registers[18] !== 32'hAEAEAEAE) begin
-      $error("LW Test 8 Failed! x18 expected 0xAEAEAEAE, Got 0x%h", dut.regfile_u.registers[18]);
-    end else begin
-      $display("LW Test 8 Passed: Register x18 = 0x%h (Expected 0xAEAEAEAE)",
-               dut.regfile_u.registers[18]);
-    end
-
-    $display("---------------------------------------");
-    $display("Starting CPU ADDI Test (x23 = x18 + 0x0BC)");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 23: ADDI executed");
-    if (dut.regfile_u.registers[23] !== 32'hAEAEAF6A) begin
-      $error("ADDI Test Failed! x23 expected 0xAEAEAF6A, Got 0x%h", dut.regfile_u.registers[23]);
-    end else begin
-      $display("ADDI Test Passed: Register x23 = 0x%h (Expected 0xAEAEAF6A)",
-               dut.regfile_u.registers[23]);
-    end
-
-    @(posedge clk);  // NOP
-
-    $display("---------------------------------------");
-    $display("Starting CPU AUIPC Test (auipc x5, 0x12345)");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 25: AUIPC executed");
-    if (dut.regfile_u.registers[5] !== 32'h12345070) begin
-      $error("AUIPC Fail: x5 expected 0x12345070, Got %h", dut.regfile_u.registers[5]);
-    end else begin
-      $display("AUIPC Test Passed: x5 = %h", dut.regfile_u.registers[5]);
-    end
-
-    $display("---------------------------------------");
-    $display("Starting CPU LUI Test (lui x5, 0xABCDE)");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 26: LUI executed");
-    if (dut.regfile_u.registers[5] !== 32'hABCDE000) begin
-      $error("LUI Fail: x5 expected 0xABCDE000, Got %h", dut.regfile_u.registers[5]);
-    end else begin
-      $display("LUI Test Passed: x5 = %h", dut.regfile_u.registers[5]);
-    end
-
-    @(posedge clk);  // NOP
-
-    $display("---------------------------------------");
-    $display("Starting CPU SLTI Test (slti x21, x18, 100)");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 28: SLTI executed");
-    if (dut.regfile_u.registers[21] !== 32'h00000001) begin
-      $error("SLTI Fail: x21 expeceted 1, Got %h", dut.regfile_u.registers[21]);
-    end else begin
-      $display("SLTI Test Passed: x21 set to 1");
-    end
-
-    @(posedge clk);  // NOP
-
-    $display("---------------------------------------");
-    $display("Starting CPU SLTIU Test (slti x22, x18, 0xfff)");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 30: SLTIU executed");
-    if (dut.regfile_u.registers[22] !== 32'h00000001) begin
-      $error("SLTIU Fail: x22 expeceted 1, Got %h", dut.regfile_u.registers[21]);
-    end else begin
-      $display("SLTIU Test Passed: x22 set to 1");
-    end
-
-    @(posedge clk);  // NOP
-
-    $display("---------------------------------------");
-    $display("Starting CPU XOR Test (xor x8, x18, x17)");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 32: XOR executed");
-    if (dut.regfile_u.registers[8] !== 32'h000001C4) begin
-      $error("XOR Fail: x8 expeceted 0x000001C4 Got %h", dut.regfile_u.registers[8]);
-    end else begin
-      $display("XOR Test Passed: x8 set to 0x000001C4");
-    end
-
-    @(posedge clk);  // NOP
-
-    $display("---------------------------------------");
-    $display("Starting CPU BLT Test 1 (Not Taken: blt x17, x18, 8)");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 34: BLT executed (x17=0x%h, x18=0x%h)", dut.regfile_u.registers[17],
-             dut.regfile_u.registers[18]);
-    if (dut.pc !== 32'h00000098) begin
-      $error("BLT Test 1 Failed! PC expected 0x00000098 (Not Taken), Got 0x%h", dut.pc);
-    end else begin
-      $display("BLT Test 1 Passed: PC = 0x%h (Branch Not Taken)", dut.pc);
-    end
-
-    $display("---------------------------------------");
-    $display("Starting CPU BLT Test 2 (Taken: blt x18, x17, 8)");
-    $display("---------------------------------------");
-    @(posedge clk);
-    $display("Cycle 35: BLT executed (x18=0x%h, x17=0x%h)", dut.regfile_u.registers[18],
-             dut.regfile_u.registers[17]);
-    if (dut.pc !== 32'h000000A0) begin
-      $error("BLT Test 2 Failed! PC expected 0x000000A0 (Taken), Got 0x%h", dut.pc);
-    end else begin
-      $display("BLT Test 2 Passed: PC = 0x%h (Branch Taken)", dut.pc);
-    end
-    if (dut.regfile_u.registers[8] !== 32'h000001C4) begin
-      $error("BLT Poison Check Failed! x8 expected 0x000001C4, Got 0x%h",
-             dut.regfile_u.registers[8]);
-    end else begin
-      $display("BLT Poison Check Passed: x8 = 0x%h (Expected 0x000001C4)",
-               dut.regfile_u.registers[8]);
-    end
-
-     $display("---------------------------------------");
-    $display("Starting CPU JALR Test (rs1 + odd immediate target)");
-    $display("---------------------------------------");
-
-    @(posedge clk);  // 0xA0: NOP, move to 0xA4
-    if (dut.pc !== 32'h000000A4) begin
-      $error("JALR Setup Failed! PC expected 0x000000A4, Got 0x%h", dut.pc);
-    end
-
-    @(posedge clk);  // 0xA4: addi x7, x0, 0x0C0
-    if (dut.regfile_u.registers[7] !== 32'h000000C0) begin
-      $error("JALR Base Failed! x7 expected 0x000000C0, Got 0x%h",
-             dut.regfile_u.registers[7]);
-    end
-
-    @(posedge clk);  // 0xA8: jalr x1, -11(x7), raw target 0xB5 -> aligned 0xB4
-    if (dut.pc !== 32'h000000B4) begin
-      $error("JALR PC Failed! PC expected 0x000000B4, Got 0x%h", dut.pc);
-    end
-
-    if (dut.regfile_u.registers[1] !== 32'h000000AC) begin
-      $error("JALR Link Failed! x1 expected 0x000000AC, Got 0x%h",
-             dut.regfile_u.registers[1]);
-    end
-
-    if (dut.regfile_u.registers[8] !== 32'h000001C4) begin
-      $error("JALR Poison Check Failed! x8 should still be 0x000001C4, Got 0x%h",
-             dut.regfile_u.registers[8]);
-    end
-
-    @(posedge clk);  // 0xB4: addi x9, x0, 5
-    if (dut.regfile_u.registers[9] !== 32'h00000005) begin
-      $error("JALR Landing Failed! x9 expected 0x00000005, Got 0x%h",
-             dut.regfile_u.registers[9]);
-    end else begin
-      $display("JALR Test Passed: PC target aligned, link written, poison skipped");
-    end
-
-    $display("---------------------------------------");
-    $display("Starting CPU SB/SH Store Tests");
-    $display("---------------------------------------");
-
-    @(posedge clk);  // 0xB8: sw x0, 32(x0)
-    if (dut.dmemory.mem[8] !== 32'h00000000) begin
-      $error("SB/SH setup failed! Mem[8] expected 0x00000000, Got 0x%h",
-            dut.dmemory.mem[8]);
-    end
-
-    @(posedge clk);  // 0xBC: sb x17, 33(x0)
-    if (dut.dmemory.mem[8] !== 32'h00007800) begin
-      $error("SB lane 1 failed! Mem[8] expected 0x00007800, Got 0x%h",
-            dut.dmemory.mem[8]);
-    end
-
-    @(posedge clk);  // 0xC0: sb x23, 35(x0)
-    if (dut.dmemory.mem[8] !== 32'h6A007800) begin
-      $error("SB lane 3 failed! Mem[8] expected 0x6A007800, Got 0x%h",
-            dut.dmemory.mem[8]);
-    end
-
-    @(posedge clk);  // 0xC4: sh x17, 36(x0)
-    if (dut.dmemory.mem[9] !== 32'h00005678) begin
-      $error("SH lower half failed! Mem[9] expected 0x00005678, Got 0x%h",
-            dut.dmemory.mem[9]);
-    end
-
-    @(posedge clk);  // 0xC8: sh x18, 38(x0)
-    if (dut.dmemory.mem[9] !== 32'hAEAE5678) begin
-      $error("SH upper half failed! Mem[9] expected 0xAEAE5678, Got 0x%h",
-            dut.dmemory.mem[9]);
-    end else begin
-      $display("SB/SH Tests Passed: byte and halfword stores updated only selected lanes");
-    end
-    
-    $display("---------------------------------------");
-    $display("Starting CPU LB/LH/LBU/LHU Load Tests");
-    $display("---------------------------------------");
-
-    @(posedge clk);  // 0xCC: lb x24, 33(x0)
-    if (dut.regfile_u.registers[24] !== 32'h00000078) begin
-      $error("LB failed! x24 expected 0x00000078, Got 0x%h",
-            dut.regfile_u.registers[24]);
-    end
-
-    @(posedge clk);  // 0xD0: lbu x25, 35(x0)
-    if (dut.regfile_u.registers[25] !== 32'h0000006A) begin
-      $error("LBU failed! x25 expected 0x0000006A, Got 0x%h",
-            dut.regfile_u.registers[25]);
-    end
-
-    @(posedge clk);  // 0xD4: lh x26, 38(x0)
-    if (dut.regfile_u.registers[26] !== 32'hFFFFAEAE) begin
-      $error("LH sign-extend failed! x26 expected 0xFFFFAEAE, Got 0x%h",
-            dut.regfile_u.registers[26]);
-    end
-
-    @(posedge clk);  // 0xD8: lhu x27, 38(x0)
-    if (dut.regfile_u.registers[27] !== 32'h0000AEAE) begin
-      $error("LHU zero-extend failed! x27 expected 0x0000AEAE, Got 0x%h",
-            dut.regfile_u.registers[27]);
-    end
-
-    @(posedge clk);  // 0xDC: lh x28, 36(x0)
-    if (dut.regfile_u.registers[28] !== 32'h00005678) begin
-      $error("LH positive halfword failed! x28 expected 0x00005678, Got 0x%h",
-            dut.regfile_u.registers[28]);
-    end else begin
-      $display("LB/LH/LBU/LHU Tests Passed: partial loads sign/zero extend correctly");
-    end
-
-    $display("---------------------------------------");
-    $display("CPU Tests Completed Successfully");
-    $display("---------------------------------------");
-    $finish;
+    check_cpu_coverage();
+    finish_report("cpu_tb");
   end
 
 endmodule
-
-
-
