@@ -13,6 +13,17 @@ build-%: $(SRC_DIR)/%.sv $(TB_DIR)/%_tb.sv
 	mkdir -p $(BUILD_DIR)/$*       # create per-testbench folder if needed
 	mv obj_dir $(BUILD_DIR)/$*/obj_dir
 
+build-%-cov: $(SRC_DIR)/%.sv $(TB_DIR)/%_tb.sv
+	mkdir -p $(BUILD_DIR)/$*
+	verilator --binary --coverage $(SRC_DIR)/$*.sv $(TB_DIR)/$*_tb.sv --top $*_tb \
+		--Mdir $(BUILD_DIR)/$*/obj_dir_cov -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND
+
+run-%-cov:
+	./$(BUILD_DIR)/$*/obj_dir_cov/V$*_tb +verilator+coverage+file+$(BUILD_DIR)/$*/coverage.dat
+
+report-%-cov:
+	verilator_coverage --report summary,hier $(BUILD_DIR)/$*/coverage.dat
+
 # Run a testbench: binary is inside obj_dir
 run-%:
 	./$(BUILD_DIR)/$*/obj_dir/V$*_tb $(ARGS)
@@ -39,7 +50,7 @@ clean:
 	rm -rf $(BUILD_DIR)/*
 	rm -f *.hex *.elf *.bin
 
-.PHONY: all clean run-% build-% assemble
+.PHONY: all clean run-% build-% build-%-cov run-%-cov report-%-cov assemble
 
 # ---- Assembler Helper ----
 # Compile RISC-V assembly (.s) to hex memory file (.hex)
