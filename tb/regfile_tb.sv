@@ -344,5 +344,67 @@ class regfile_coverage;
   endfunction
 endclass
 
+module regfile_sva(regfile_if.monitor mon);
+  property port1_x0_reads_zero;
+    @(posedge mon.clk)
+      (mon.address1 == 5'd0) |-> ##0 (mon.read_data1 == 32'd0);
+  endproperty
+
+  property port2_x0_reads_zero;
+    @(posedge mon.clk)
+      (mon.address2 == 5'd0) |-> ##0 (mon.read_data2 == 32'd0);
+  endproperty
+
+  property port1_write_visible;
+    @(posedge mon.clk) disable iff (!mon.rst_n)
+      (mon.write_enable && (mon.address3 != 5'd0) && (mon.address1 == mon.address3))
+      |-> ##0 (mon.read_data1 == mon.write_data);
+  endproperty
+
+  property port2_write_visible;
+    @(posedge mon.clk) disable iff (!mon.rst_n)
+      (mon.write_enable && (mon.address3 != 5'd0) && (mon.address2 == mon.address3))
+      |-> ##0 (mon.read_data2 == mon.write_data);
+  endproperty
+
+  property port1_stable_without_targeted_write;
+    @(posedge mon.clk) disable iff (!mon.rst_n)
+      ($past(mon.rst_n) &&
+       (mon.address1 == $past(mon.address1)) &&
+       !($past(mon.write_enable) &&
+         ($past(mon.address3) != 5'd0) &&
+         ($past(mon.address3) == mon.address1)))
+      |-> (mon.read_data1 == $past(mon.read_data1));
+  endproperty
+
+  property port2_stable_without_targeted_write;
+    @(posedge mon.clk) disable iff (!mon.rst_n)
+      ($past(mon.rst_n) &&
+       (mon.address2 == $past(mon.address2)) &&
+       !($past(mon.write_enable) &&
+         ($past(mon.address3) != 5'd0) &&
+         ($past(mon.address3) == mon.address2)))
+      |-> (mon.read_data2 == $past(mon.read_data2));
+  endproperty
+
+  assert property (port1_x0_reads_zero)
+    else $error("regfile x0 invariant failed on read port 1");
+
+  assert property (port2_x0_reads_zero)
+    else $error("regfile x0 invariant failed on read port 2");
+
+  assert property (port1_write_visible)
+    else $error("regfile write was not visible on read port 1");
+
+  assert property (port2_write_visible)
+    else $error("regfile write was not visible on read port 2");
+
+  assert property (port1_stable_without_targeted_write)
+    else $error("regfile read port 1 changed without targeted write");
+
+  assert property (port2_stable_without_targeted_write)
+    else $error("regfile read port 2 changed without targeted write");
+endmodule
+
 module regfile_tb;
 endmodule
