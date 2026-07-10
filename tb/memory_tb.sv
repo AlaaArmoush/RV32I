@@ -128,6 +128,81 @@ class memory_item;
   endfunction
 endclass : memory_item
 
+class memory_sequence;
+  mailbox #(memory_item) request_mb;
+  int unsigned words;
+
+  function new (mailbox #(memory_item) request_mb, int unsigned words = 64);
+    this.request_mb = request_mb;
+    this.words = words;
+  endfunction
+
+  function memory_item make_item (memory_op_e op, int unsigned word_index, logic [31:0] write_data = 32'h0000_0000, logic [3:0] byte_enable = 4'h0);
+    memory_item item = new(words);
+
+    item.op = op;
+    item.word_index = word_index;
+    item.write_data = write_data;
+    item.byte_enable = byte_enable;
+    item.address = word_index << 2;
+    itme.read_data = '0;
+    item.rst_n = 1'b1;
+    item.cycle = 0;
+
+    return item;
+  endfunction
+
+  task automatic send_reset();
+    memory_item item;
+    item = make_item(MEM_OP_RESET, 0);
+    request_mb.put(item);
+  endtask
+
+  task automatic send_read(int unsigned word_index);
+    memory_item item;
+    item = make_item(MEM_OP_READ, word_index);
+    request_mb.put(item);
+  endtask
+
+  task automatic send_write(int unsigned word_index, logic [31:0] write_data, logic [3:0] byte_enable = 4'hF);
+    memory_item item;
+    item = make_item(MEM_OP_WRITE, word_index, write_data, byte_enable);
+    request_mb.put(item);
+  endtask
+
+  task automatic send_write_disabled(int unsigned word_index, logic [31:0] write_data, logic [3:0] byte_enable = 4'hF);
+    memory_item item;
+    item = make_item(MEM_OP_WRITE_DISABLED, word_index, write_data, byte_enable);
+    request_mb.put(item);
+  endtask
+
+  task automatic run_directed_smoke();
+    send_reset();
+
+    send_write(0, 32'h1122_3344, 4'b1111);
+    send_read(0);
+
+    send_write(1, 32'haaaa_bbbb, 4'b0011);
+    send_read(1);
+
+    send_write(1, 32'hcccc_dddd, 4'b1100);
+    send_read(1);
+
+    send_write(words - 1, 32'hffff_0001, 4'b1111);
+    send_read(words - 1);
+
+    send_write(2, 32'h1234_5678, 4'b1111);
+    send_write_disabled(2, 32'hdead_beef, 4'b1111);
+    send_read(2);
+
+    send_write(3, 32'h0000_00ff, 4'b0001);
+    send_write(3, 32'h0000_ff00, 4'b0010);
+    send_write(3, 32'h00ff_0000, 4'b0100);
+    send_write(3, 32'hff00_0000, 4'b1000);
+    send_read(3);
+  endtask
+endclass : memory_sequence
+
 module memory_tb;
   localparam int WORDS = 64;
   localparam int CLK_PERIOD_NS = 10;
