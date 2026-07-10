@@ -53,4 +53,29 @@ module memory_tb;
       .byte_enable(mem_vif.byte_enable),
       .read_data(mem_vif.read_data)
   );
+
+  task automatic init_bus();
+    mem_vif.rst_n = 1'b1;
+    mem_vif.address = '0;
+    mem_vif.write_data = '0;
+    mem_vif.write_enable = 1'b0;
+    mem_vif.byte_enable = 4'b0000;
+  endtask
+
+  task automatic reset_dut();
+    mem_vif.rst_n = 1'b0;
+    repeat (2) @(posedge clk);
+    mem_vif.rst_n = 1'b1;
+    @(posedge clk);
+  endtask
+
+  initial begin
+    $display("[MEM_TB] Starting memory DV refactor skeleton");
+
+    init_bus();
+    reset_dut();
+
+    $display("[MEM_TB] Step 1 skeleton complete");
+    $finish;
+  end
 endmodule
