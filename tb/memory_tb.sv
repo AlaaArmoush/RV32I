@@ -531,7 +531,53 @@ module memory_tb;
   endtask
 
   initial begin
+    int unsigned directed_item_count = 17;
+    int unsigned timeout_cycles = 200;
 
-  end
+    $display("[MEM_TB] Starting memory DV environment");
 
+    request_mb = new();
+    observed_mb = new();
+
+    seq = new(request_mb, WORDS);
+    driver = new(mem_vif.driver, request_mb);
+    monitor = new(mem_vif.monitor, observed_mb, WORDS);
+    scoreboard = new(observed_mb, WORDS);
+
+    driver.verbose = 1'b0;
+    monitor.verbose = 1'b0;
+    scoreboard.verbose = 1'b0;
+
+    init_bus();
+
+    fork : env_threads
+      driver.run();
+      monitor.run();
+      scoreboard.run();
+    join_none
+
+    seq.run_directed_smoke;
+
+    //prevent early sim finish
+    fork : completion_or_timeout
+      begin
+        wait (scoreboard.checked_count >= directed_item_count);
+      end
+
+      begin
+        repeat (timeout_cycles) @(posedge clk);
+        $fatal(1,
+               "[MEM_TB] Timeout waiting for scoreboard: checked=%0d expected=%0d",
+               scoreboard.checked_count,
+               directed_item_count);
+      end
+    join_any
+
+    disable completion_or_timeout;
+
+    scoreboard.report();
+
+    $display("[MEM_TB] PASS");
+    disable env_threads;
+    $finish;  end
 endmodule
