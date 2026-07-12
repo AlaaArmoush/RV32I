@@ -9,6 +9,7 @@ interface memory_if #(parameter int ADDR_WIDTH = 32) (
   logic rst_n;
   logic [3:0] byte_enable;
   logic [31:0] read_data;
+  logic txn_valid;
 
   modport driver (
       input  clk,
@@ -17,7 +18,8 @@ interface memory_if #(parameter int ADDR_WIDTH = 32) (
       output address,
       output write_data,
       output write_enable,
-      output byte_enable
+      output byte_enable,
+      output txn_valid
   );
 
   modport monitor (
@@ -27,7 +29,8 @@ interface memory_if #(parameter int ADDR_WIDTH = 32) (
       input write_data,
       input write_enable,
       input byte_enable,
-      input read_data
+      input read_data,
+      input txn_valid
   );
 endinterface
 
@@ -91,7 +94,7 @@ class memory_item;
     this.words = words;
   endfunction
 
-  function post_randomize ();
+  function void post_randomize();
     // Convert word index to byte address. Each 32-bit word is 4 bytes
     // so word N starts at byte address N*4.
     address = word_index << 2;
@@ -133,10 +136,12 @@ endclass : memory_item
 class memory_sequence;
   mailbox #(memory_item) request_mb;
   int unsigned words;
+  int unsigned generated_count;
 
   function new (mailbox #(memory_item) request_mb, int unsigned words = 64);
     this.request_mb = request_mb;
     this.words = words;
+    this.generated_count = 0;
   endfunction
 
   function memory_item make_item (memory_op_e op, int unsigned word_index, logic [31:0] write_data = 32'h0000_0000, logic [3:0] byte_enable = 4'h0);
@@ -154,28 +159,25 @@ class memory_sequence;
     return item;
   endfunction
 
-  task send_reset();
-    memory_item item;
-    item = make_item(MEM_OP_RESET, 0);
+  task send_item(memory_item item);
     request_mb.put(item);
+    generated_count++;
+  endtask
+
+  task send_reset();
+    send_item(make_item(MEM_OP_RESET, 0));
   endtask
 
   task send_read(int unsigned word_index);
-    memory_item item;
-    item = make_item(MEM_OP_READ, word_index);
-    request_mb.put(item);
+    send_item(make_item(MEM_OP_READ, word_index));
   endtask
 
   task send_write(int unsigned word_index, logic [31:0] write_data, logic [3:0] byte_enable = 4'hF);
-    memory_item item;
-    item = make_item(MEM_OP_WRITE, word_index, write_data, byte_enable);
-    request_mb.put(item);
+    send_item(make_item(MEM_OP_WRITE, word_index, write_data, byte_enable));
   endtask
 
   task send_write_disabled(int unsigned word_index, logic [31:0] write_data, logic [3:0] byte_enable = 4'hF);
-    memory_item item;
-    item = make_item(MEM_OP_WRITE_DISABLED, word_index, write_data, byte_enable);
-    request_mb.put(item);
+    send_item(make_item(MEM_OP_WRITE_DISABLED, word_index, write_data, byte_enable));
   endtask
 
   task run_directed_smoke();
@@ -203,6 +205,89 @@ class memory_sequence;
     send_write(3, 32'hff00_0000, 4'b1000);
     send_read(3);
   endtask
+
+  task run_random(int unsigned count);
+    memory_item item;
+    int unsigned last_word_index;
+    bit have_last_word_index;
+
+    last_word_index = 0;
+    have_last_word_index = 1'b0;
+
+    for (int unsigned i = 0; i < count; i++) begin
+      item = new(words);
+
+      if (!item.randomize()) begin
+        $fatal(1, "[MEM_SEQUENCE] Failed to randomize item %0d", i);
+      end
+
+      case (i % 16)
+        0: begin
+          item.op = MEM_OP_WRITE;
+          item.word_index = 0;
+          item.byte_enable = 4'b1111;
+        end
+
+        1: begin
+          item.op = MEM_OP_READ;
+          item.word_index = 0;
+          item.byte_enable = 4'b0000;
+        end
+
+        2: begin
+          item.op = MEM_OP_WRITE;
+          item.word_index = words - 1;
+          item.byte_enable = 4'b1111;
+        end
+
+        3: begin
+          item.op = MEM_OP_READ;
+          item.word_index = words - 1;
+          item.byte_enable = 4'b0000;
+        end
+
+        4: begin
+          item.op = MEM_OP_WRITE;
+          item.byte_enable = 4'b0001;
+        end
+
+        5: begin
+          item.op = MEM_OP_WRITE;
+          item.byte_enable = 4'b0010;
+        end
+
+        6: begin
+          item.op = MEM_OP_WRITE;
+          item.byte_enable = 4'b0100;
+        end
+
+        7: begin
+          item.op = MEM_OP_WRITE;
+          item.byte_enable = 4'b1000;
+        end
+
+        8: begin
+          item.op = MEM_OP_WRITE_DISABLED;
+          item.byte_enable = 4'b1111;
+        end
+
+        9: begin
+          if (have_last_word_index) begin
+            item.word_index = last_word_index;
+          end
+        end
+
+        default: begin
+        end
+      endcase
+
+      item.address = item.word_index << 2;
+      last_word_index = item.word_index;
+      have_last_word_index = 1'b1;
+
+      send_item(item);
+    end
+  endtask
 endclass : memory_sequence
 
 class memory_driver;
@@ -225,6 +310,7 @@ class memory_driver;
     vif.write_data <= '0;
     vif.write_enable <= 1'b0;
     vif.byte_enable <= 4'b0000;
+    vif.txn_valid <= 1'b0;
   endtask
 
   task run();
@@ -253,8 +339,11 @@ class memory_driver;
         vif.write_data <= '0;
         vif.write_enable <= 1'b0;
         vif.byte_enable <= 4'b0000;
+        vif.txn_valid <= 1'b1;
 
         @(posedge vif.clk);
+        #1;
+        vif.txn_valid <= 1'b0;
 
         @(negedge vif.clk);
         vif.rst_n <= 1'b1;
@@ -271,8 +360,11 @@ class memory_driver;
         vif.write_data <= '0;
         vif.write_enable <= 1'b0;
         vif.byte_enable <= 4'b0000;
+        vif.txn_valid <= 1'b1;
 
         @(posedge vif.clk);
+        #1;
+        vif.txn_valid <= 1'b0;
       end
 
       MEM_OP_WRITE: begin
@@ -282,8 +374,11 @@ class memory_driver;
         vif.write_data <= item.write_data;
         vif.write_enable <= 1'b1;
         vif.byte_enable <= item.byte_enable;
+        vif.txn_valid <= 1'b1;
 
         @(posedge vif.clk);
+        #1;
+        vif.txn_valid <= 1'b0;
       end
 
       MEM_OP_WRITE_DISABLED: begin
@@ -293,8 +388,11 @@ class memory_driver;
         vif.write_data <= item.write_data;
         vif.write_enable <= 1'b0;
         vif.byte_enable <= item.byte_enable;
+        vif.txn_valid <= 1'b1;
 
         @(posedge vif.clk);
+        #1;
+        vif.txn_valid <= 1'b0;
       end
 
       default: begin
@@ -329,6 +427,10 @@ class memory_monitor;
     forever begin
       @(posedge vif.clk);
       cycle++;
+
+      if (!vif.txn_valid) begin
+        continue;
+      end
 
       item = new(words);
       item.rst_n = vif.rst_n;
@@ -521,6 +623,7 @@ module memory_tb;
     mem_vif.write_data = '0;
     mem_vif.write_enable = 1'b0;
     mem_vif.byte_enable = 4'b0000;
+    mem_vif.txn_valid = 1'b0;
   endtask
 
   task automatic reset_dut();
@@ -531,8 +634,27 @@ module memory_tb;
   endtask
 
   initial begin
-    int unsigned directed_item_count = 17;
-    int unsigned timeout_cycles = 200;
+    int unsigned expected_item_count;
+    int unsigned timeout_cycles;
+    int unsigned random_tests;
+    int unsigned seed;
+
+    seed = 32'h2026_0712;
+    random_tests = 500;
+
+    if ($value$plusargs("SEED=%d", seed)) begin
+      $display("[MEM_TB] Using plusarg SEED=%0d", seed);
+    end else begin
+      $display("[MEM_TB] Using default SEED=%0d", seed);
+    end
+
+    if ($value$plusargs("RANDOM_TESTS=%d", random_tests)) begin
+      $display("[MEM_TB] Using plusarg RANDOM_TESTS=%0d", random_tests);
+    end else begin
+      $display("[MEM_TB] Using default RANDOM_TESTS=%0d", random_tests);
+    end
+
+    void'($urandom(seed));
 
     $display("[MEM_TB] Starting memory DV environment");
 
@@ -556,12 +678,15 @@ module memory_tb;
       scoreboard.run();
     join_none
 
-    seq.run_directed_smoke;
+    seq.run_directed_smoke();
+    seq.run_random(random_tests);
 
-    //prevent early sim finish
+    expected_item_count = seq.generated_count;
+    timeout_cycles = 200 + (expected_item_count * 4);
+
     fork : completion_or_timeout
       begin
-        wait (scoreboard.checked_count >= directed_item_count);
+        wait (scoreboard.checked_count >= expected_item_count);
       end
 
       begin
@@ -569,7 +694,7 @@ module memory_tb;
         $fatal(1,
                "[MEM_TB] Timeout waiting for scoreboard: checked=%0d expected=%0d",
                scoreboard.checked_count,
-               directed_item_count);
+               expected_item_count);
       end
     join_any
 
@@ -577,7 +702,11 @@ module memory_tb;
 
     scoreboard.report();
 
-    $display("[MEM_TB] PASS");
+    $display("[MEM_TB] PASS checked=%0d random_tests=%0d seed=%0d",
+             scoreboard.checked_count,
+             random_tests,
+             seed);
     disable env_threads;
-    $finish;  end
+    $finish;
+  end
 endmodule
