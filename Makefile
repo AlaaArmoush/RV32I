@@ -23,6 +23,16 @@ MEMORY_TB_FILES = \
 	$(TB_DIR)/memory/memory_sva.sv \
 	$(TB_DIR)/memory/memory_tb.sv
 
+REGFILE_TB_FILES = \
+	$(TB_DIR)/regfile/regfile_if.sv \
+	$(TB_DIR)/regfile/regfile_item.sv \
+	$(TB_DIR)/regfile/regfile_driver.sv \
+	$(TB_DIR)/regfile/regfile_scoreboard.sv \
+	$(TB_DIR)/regfile/regfile_monitor.sv \
+	$(TB_DIR)/regfile/regfile_coverage.sv \
+	$(TB_DIR)/regfile/regfile_sva.sv \
+	$(TB_DIR)/regfile/regfile_tb.sv
+
 build-%: $(SRC_DIR)/%.sv $(TB_DIR)/%_tb.sv
 	mkdir -p $(BUILD_DIR)/$*/obj_dir
 	$(VERILATOR) --binary $(SRC_DIR)/$*.sv $(TB_DIR)/$*_tb.sv --top $*_tb \
@@ -42,6 +52,16 @@ build-memory-cov: $(SRC_DIR)/memory.sv $(MEMORY_TB_FILES)
 	mkdir -p $(BUILD_DIR)/memory/obj_dir_cov
 	$(VERILATOR) --binary $(COVERAGE_FLAGS) $(SRC_DIR)/memory.sv $(MEMORY_TB_FILES) --top memory_tb \
 		--Mdir $(BUILD_DIR)/memory/obj_dir_cov $(VERILATOR_FLAGS)
+
+build-regfile: $(SRC_DIR)/regfile.sv $(REGFILE_TB_FILES)
+	mkdir -p $(BUILD_DIR)/regfile/obj_dir
+	$(VERILATOR) --binary $(SRC_DIR)/regfile.sv $(REGFILE_TB_FILES) --top regfile_tb \
+		--Mdir $(BUILD_DIR)/regfile/obj_dir $(VERILATOR_FLAGS)
+
+build-regfile-cov: $(SRC_DIR)/regfile.sv $(REGFILE_TB_FILES)
+	mkdir -p $(BUILD_DIR)/regfile/obj_dir_cov
+	$(VERILATOR) --binary $(COVERAGE_FLAGS) $(SRC_DIR)/regfile.sv $(REGFILE_TB_FILES) --top regfile_tb \
+		--Mdir $(BUILD_DIR)/regfile/obj_dir_cov $(VERILATOR_FLAGS)
 
 run-%-cov: build-%-cov
 	./$(BUILD_DIR)/$*/obj_dir_cov/V$*_tb +verilator+coverage+file+$(BUILD_DIR)/$*/coverage.dat $(ARGS)
