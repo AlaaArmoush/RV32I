@@ -31,6 +31,37 @@ class memory_coverage;
     RAW_MANY_TXNS_LATER
   } raw_distance_e;
 
+  typedef enum int {
+    BE_DATA_NOT_WRITE,
+    BE_DATA_SINGLE_ZERO,
+    BE_DATA_LOW_ZERO,
+    BE_DATA_HIGH_ZERO,
+    BE_DATA_FULL_ZERO,
+    BE_DATA_MIXED_ZERO,
+    BE_DATA_SINGLE_ALL_ONES,
+    BE_DATA_LOW_ALL_ONES,
+    BE_DATA_HIGH_ALL_ONES,
+    BE_DATA_FULL_ALL_ONES,
+    BE_DATA_MIXED_ALL_ONES,
+    BE_DATA_SINGLE_WALKING,
+    BE_DATA_LOW_WALKING,
+    BE_DATA_HIGH_WALKING,
+    BE_DATA_FULL_WALKING,
+    BE_DATA_MIXED_WALKING,
+    BE_DATA_SINGLE_RANDOM,
+    BE_DATA_LOW_RANDOM,
+    BE_DATA_HIGH_RANDOM,
+    BE_DATA_FULL_RANDOM,
+    BE_DATA_MIXED_RANDOM
+  } be_data_class_e;
+
+  typedef enum int {
+    OP_RESET_ACTIVE,
+    OP_READ_NORMAL,
+    OP_WRITE_NORMAL,
+    OP_WRITE_DISABLED_NORMAL
+  } op_reset_phase_e;
+
   int unsigned words;
   int signed last_write_txn_by_word[];
   int unsigned observed_count;
@@ -44,8 +75,12 @@ class memory_coverage;
       data_class_e data_class,
       bit reset_active,
       bit repeated_address,
-      raw_distance_e raw_distance
+      raw_distance_e raw_distance,
+      be_data_class_e be_data_class,
+      op_reset_phase_e op_reset_phase
   );
+    option.per_instance = 1;
+
     cp_op: coverpoint op {
       bins reset = {MEM_OP_RESET};
       bins read = {MEM_OP_READ};
@@ -93,9 +128,38 @@ class memory_coverage;
       bins many_txns_later = {RAW_MANY_TXNS_LATER};
     }
 
+    cp_be_data_class: coverpoint be_data_class {
+      bins not_write = {BE_DATA_NOT_WRITE};
+      bins single_zero = {BE_DATA_SINGLE_ZERO};
+      bins low_zero = {BE_DATA_LOW_ZERO};
+      bins high_zero = {BE_DATA_HIGH_ZERO};
+      bins full_zero = {BE_DATA_FULL_ZERO};
+      bins mixed_zero = {BE_DATA_MIXED_ZERO};
+      bins single_all_ones = {BE_DATA_SINGLE_ALL_ONES};
+      bins low_all_ones = {BE_DATA_LOW_ALL_ONES};
+      bins high_all_ones = {BE_DATA_HIGH_ALL_ONES};
+      bins full_all_ones = {BE_DATA_FULL_ALL_ONES};
+      bins mixed_all_ones = {BE_DATA_MIXED_ALL_ONES};
+      bins single_walking = {BE_DATA_SINGLE_WALKING};
+      bins low_walking = {BE_DATA_LOW_WALKING};
+      bins high_walking = {BE_DATA_HIGH_WALKING};
+      bins full_walking = {BE_DATA_FULL_WALKING};
+      bins mixed_walking = {BE_DATA_MIXED_WALKING};
+      bins single_random = {BE_DATA_SINGLE_RANDOM};
+      bins low_random = {BE_DATA_LOW_RANDOM};
+      bins high_random = {BE_DATA_HIGH_RANDOM};
+      bins full_random = {BE_DATA_FULL_RANDOM};
+      bins mixed_random = {BE_DATA_MIXED_RANDOM};
+    }
+
+    cp_op_reset_phase: coverpoint op_reset_phase {
+      bins reset_active = {OP_RESET_ACTIVE};
+      bins read_normal = {OP_READ_NORMAL};
+      bins write_normal = {OP_WRITE_NORMAL};
+      bins write_disabled_normal = {OP_WRITE_DISABLED_NORMAL};
+    }
+
     cross cp_byte_enable_class, cp_addr_class;
-    cross cp_byte_enable_class, cp_data_class;
-    cross cp_op, cp_reset_phase;
     cross cp_repeated_address, cp_byte_enable_class;
   endgroup
 
@@ -183,6 +247,72 @@ class memory_coverage;
     return RAW_NO_PRIOR;
   endfunction
 
+  function be_data_class_e classify_be_data(memory_item item);
+    byte_enable_class_e be_class;
+    data_class_e data_class;
+
+    be_class = classify_byte_enable(item.byte_enable);
+    data_class = classify_data(item);
+
+    if (data_class == DATA_NOT_WRITE) begin
+      return BE_DATA_NOT_WRITE;
+    end
+
+    case (data_class)
+      DATA_ZERO: begin
+        case (be_class)
+          BE_SINGLE: return BE_DATA_SINGLE_ZERO;
+          BE_LOW_HALF: return BE_DATA_LOW_ZERO;
+          BE_HIGH_HALF: return BE_DATA_HIGH_ZERO;
+          BE_FULL: return BE_DATA_FULL_ZERO;
+          default: return BE_DATA_MIXED_ZERO;
+        endcase
+      end
+
+      DATA_ALL_ONES: begin
+        case (be_class)
+          BE_SINGLE: return BE_DATA_SINGLE_ALL_ONES;
+          BE_LOW_HALF: return BE_DATA_LOW_ALL_ONES;
+          BE_HIGH_HALF: return BE_DATA_HIGH_ALL_ONES;
+          BE_FULL: return BE_DATA_FULL_ALL_ONES;
+          default: return BE_DATA_MIXED_ALL_ONES;
+        endcase
+      end
+
+      DATA_WALKING_BYTE: begin
+        case (be_class)
+          BE_SINGLE: return BE_DATA_SINGLE_WALKING;
+          BE_LOW_HALF: return BE_DATA_LOW_WALKING;
+          BE_HIGH_HALF: return BE_DATA_HIGH_WALKING;
+          BE_FULL: return BE_DATA_FULL_WALKING;
+          default: return BE_DATA_MIXED_WALKING;
+        endcase
+      end
+
+      default: begin
+        case (be_class)
+          BE_SINGLE: return BE_DATA_SINGLE_RANDOM;
+          BE_LOW_HALF: return BE_DATA_LOW_RANDOM;
+          BE_HIGH_HALF: return BE_DATA_HIGH_RANDOM;
+          BE_FULL: return BE_DATA_FULL_RANDOM;
+          default: return BE_DATA_MIXED_RANDOM;
+        endcase
+      end
+    endcase
+  endfunction
+
+  function op_reset_phase_e classify_op_reset_phase(memory_item item);
+    if (!item.rst_n) begin
+      return OP_RESET_ACTIVE;
+    end
+
+    case (item.op)
+      MEM_OP_READ: return OP_READ_NORMAL;
+      MEM_OP_WRITE: return OP_WRITE_NORMAL;
+      default: return OP_WRITE_DISABLED_NORMAL;
+    endcase
+  endfunction
+
   function void sample(memory_item item);
     bit repeated_address;
     raw_distance_e raw_distance;
@@ -197,7 +327,9 @@ class memory_coverage;
         classify_data(item),
         !item.rst_n,
         repeated_address,
-        raw_distance
+        raw_distance,
+        classify_be_data(item),
+        classify_op_reset_phase(item)
     );
 
     if (item.op == MEM_OP_RESET) begin

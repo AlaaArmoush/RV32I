@@ -50,6 +50,8 @@ class memory_sequence;
   task run_directed_smoke();
     send_reset();
 
+    send_read(4);
+
     send_write(0, 32'h1122_3344, 4'b1111);
     send_read(0);
 
@@ -71,6 +73,27 @@ class memory_sequence;
     send_write(3, 32'h00ff_0000, 4'b0100);
     send_write(3, 32'hff00_0000, 4'b1000);
     send_read(3);
+
+    run_coverage_targets();
+  endtask
+
+  task run_coverage_targets();
+    send_write(5, 32'h0000_0000, 4'b0001);
+    send_write(6, 32'h0000_0000, 4'b0011);
+    send_write(7, 32'h0000_0000, 4'b1100);
+    send_write(8, 32'h0000_0000, 4'b1111);
+    send_write(9, 32'h0000_0000, 4'b0101);
+
+    send_write(10, 32'hffff_ffff, 4'b0001);
+    send_write(11, 32'hffff_ffff, 4'b0011);
+    send_write(12, 32'hffff_ffff, 4'b1100);
+    send_write(13, 32'hffff_ffff, 4'b1111);
+    send_write(14, 32'hffff_ffff, 4'b1010);
+
+    send_write(15, 32'h0000_00ff, 4'b0011);
+    send_write(16, 32'h0000_ff00, 4'b1100);
+    send_write(17, 32'h00ff_0000, 4'b1111);
+    send_write(18, 32'hff00_0000, 4'b0101);
   endtask
 
   task run_random(int unsigned count);
