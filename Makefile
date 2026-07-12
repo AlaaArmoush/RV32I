@@ -6,9 +6,22 @@ VERILATOR       ?= verilator
 VERILATOR_FLAGS := -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND
 COVERAGE_FLAGS  := --coverage
 
-# Automatically find all testbenches ending with _tb.sv
-TBS = $(notdir $(basename $(wildcard $(TB_DIR)/*_tb.sv)))
+# Automatically find flat testbenches and split per-block testbench directories.
+FLAT_TBS = $(patsubst $(TB_DIR)/%_tb.sv,%,$(wildcard $(TB_DIR)/*_tb.sv))
+SPLIT_TBS = $(patsubst $(TB_DIR)/%/,%,$(sort $(dir $(wildcard $(TB_DIR)/*/*_tb.sv))))
+TBS = $(sort $(FLAT_TBS) $(SPLIT_TBS))
 LEAF_TBS = $(filter-out cpu,$(TBS))
+
+MEMORY_TB_FILES = \
+	$(TB_DIR)/memory/memory_if.sv \
+	$(TB_DIR)/memory/memory_item.sv \
+	$(TB_DIR)/memory/memory_sequence.sv \
+	$(TB_DIR)/memory/memory_driver.sv \
+	$(TB_DIR)/memory/memory_monitor.sv \
+	$(TB_DIR)/memory/memory_coverage.sv \
+	$(TB_DIR)/memory/memory_scoreboard.sv \
+	$(TB_DIR)/memory/memory_sva.sv \
+	$(TB_DIR)/memory/memory_tb.sv
 
 build-%: $(SRC_DIR)/%.sv $(TB_DIR)/%_tb.sv
 	mkdir -p $(BUILD_DIR)/$*/obj_dir
@@ -19,6 +32,16 @@ build-%-cov: $(SRC_DIR)/%.sv $(TB_DIR)/%_tb.sv
 	mkdir -p $(BUILD_DIR)/$*/obj_dir_cov
 	$(VERILATOR) --binary $(COVERAGE_FLAGS) $(SRC_DIR)/$*.sv $(TB_DIR)/$*_tb.sv --top $*_tb \
 		--Mdir $(BUILD_DIR)/$*/obj_dir_cov $(VERILATOR_FLAGS)
+
+build-memory: $(SRC_DIR)/memory.sv $(MEMORY_TB_FILES)
+	mkdir -p $(BUILD_DIR)/memory/obj_dir
+	$(VERILATOR) --binary $(SRC_DIR)/memory.sv $(MEMORY_TB_FILES) --top memory_tb \
+		--Mdir $(BUILD_DIR)/memory/obj_dir $(VERILATOR_FLAGS)
+
+build-memory-cov: $(SRC_DIR)/memory.sv $(MEMORY_TB_FILES)
+	mkdir -p $(BUILD_DIR)/memory/obj_dir_cov
+	$(VERILATOR) --binary $(COVERAGE_FLAGS) $(SRC_DIR)/memory.sv $(MEMORY_TB_FILES) --top memory_tb \
+		--Mdir $(BUILD_DIR)/memory/obj_dir_cov $(VERILATOR_FLAGS)
 
 run-%-cov: build-%-cov
 	./$(BUILD_DIR)/$*/obj_dir_cov/V$*_tb +verilator+coverage+file+$(BUILD_DIR)/$*/coverage.dat $(ARGS)
