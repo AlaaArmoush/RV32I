@@ -147,38 +147,38 @@ class memory_sequence;
     item.write_data = write_data;
     item.byte_enable = byte_enable;
     item.address = word_index << 2;
-    itme.read_data = '0;
+    item.read_data = '0;
     item.rst_n = 1'b1;
     item.cycle = 0;
 
     return item;
   endfunction
 
-  task automatic send_reset();
+  task send_reset();
     memory_item item;
     item = make_item(MEM_OP_RESET, 0);
     request_mb.put(item);
   endtask
 
-  task automatic send_read(int unsigned word_index);
+  task send_read(int unsigned word_index);
     memory_item item;
     item = make_item(MEM_OP_READ, word_index);
     request_mb.put(item);
   endtask
 
-  task automatic send_write(int unsigned word_index, logic [31:0] write_data, logic [3:0] byte_enable = 4'hF);
+  task send_write(int unsigned word_index, logic [31:0] write_data, logic [3:0] byte_enable = 4'hF);
     memory_item item;
     item = make_item(MEM_OP_WRITE, word_index, write_data, byte_enable);
     request_mb.put(item);
   endtask
 
-  task automatic send_write_disabled(int unsigned word_index, logic [31:0] write_data, logic [3:0] byte_enable = 4'hF);
+  task send_write_disabled(int unsigned word_index, logic [31:0] write_data, logic [3:0] byte_enable = 4'hF);
     memory_item item;
     item = make_item(MEM_OP_WRITE_DISABLED, word_index, write_data, byte_enable);
     request_mb.put(item);
   endtask
 
-  task automatic run_directed_smoke();
+  task run_directed_smoke();
     send_reset();
 
     send_write(0, 32'h1122_3344, 4'b1111);
@@ -219,7 +219,7 @@ class memory_driver;
     this.driven_count = 0;
   endfunction
 
-  task automatic drive_idle();
+  task drive_idle();
     vif.rst_n <= 1'b1;
     vif.address <= '0;
     vif.write_data <= '0;
@@ -227,13 +227,13 @@ class memory_driver;
     vif.byte_enable <= 4'b0000;
   endtask
 
-  task automatic run ();
+  task run();
     memory_item item;
 
     drive_idle();
 
     forever begin
-      request_mb(item);
+      request_mb.get(item);
       drive_item(item);
       driven_count++;
 
@@ -244,7 +244,7 @@ class memory_driver;
   endtask
   
   //drive on negative edge and read on posedge
-  task automatic drive_item(memory_item item);
+  task drive_item(memory_item item);
     case (item.op)
       MEM_OP_RESET: begin
         @(negedge vif.clk);
@@ -323,7 +323,7 @@ class memory_monitor;
     this.cycle = 0;
   endfunction
 
-  task automatic run();
+  task run();
     memory_item item;
 
     forever begin
@@ -415,7 +415,7 @@ class memory_scoreboard;
     $error("[MEM_SCOREBOARD] %s | %s", message, item.sprint());
   endfunction
 
-  task automatic run();
+  task run();
     memory_item item;
     logic [31:0] expected_word;
 
@@ -489,6 +489,14 @@ module memory_tb;
   localparam int CLK_PERIOD_NS = 10;
   logic clk = 1'b0;
   
+  mailbox #(memory_item) request_mb;
+  mailbox #(memory_item) observed_mb;
+
+  memory_sequence seq;
+  memory_driver driver;
+  memory_monitor monitor;
+  memory_scoreboard scoreboard;
+
   always #(CLK_PERIOD_NS / 2) clk = ~clk;
 
   memory_if mem_vif(.clk(clk));
@@ -523,12 +531,7 @@ module memory_tb;
   endtask
 
   initial begin
-    $display("[MEM_TB] Starting memory DV refactor skeleton");
 
-    init_bus();
-    reset_dut();
-
-    $display("[MEM_TB] Step 1 skeleton complete");
-    $finish;
   end
+
 endmodule
