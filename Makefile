@@ -1,46 +1,91 @@
-# Makefile: run original command, then move obj_dir into build/<tbname>/obj_dir
-
 BUILD_DIR = build
 SRC_DIR   = src
 TB_DIR    = tb
 
-# Automatically find all testbenches ending with _tb.sv
-TBS = $(notdir $(basename $(wildcard $(TB_DIR)/*_tb.sv)))
+VERILATOR       ?= verilator
+VERILATOR_FLAGS := -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND
+COVERAGE_FLAGS  := --coverage
 
-# Build rule: run original command, then move obj_dir
+# Automatically find flat testbenches and split per-block testbench directories.
+FLAT_TBS = $(patsubst $(TB_DIR)/%_tb.sv,%,$(wildcard $(TB_DIR)/*_tb.sv))
+SPLIT_TBS = $(patsubst $(TB_DIR)/%/,%,$(sort $(dir $(wildcard $(TB_DIR)/*/*_tb.sv))))
+TBS = $(sort $(FLAT_TBS) $(SPLIT_TBS))
+LEAF_TBS = $(filter-out cpu,$(TBS))
+
+MEMORY_TB_FILES = \
+	$(TB_DIR)/memory/memory_if.sv \
+	$(TB_DIR)/memory/memory_item.sv \
+	$(TB_DIR)/memory/memory_sequence.sv \
+	$(TB_DIR)/memory/memory_driver.sv \
+	$(TB_DIR)/memory/memory_monitor.sv \
+	$(TB_DIR)/memory/memory_coverage.sv \
+	$(TB_DIR)/memory/memory_scoreboard.sv \
+	$(TB_DIR)/memory/memory_sva.sv \
+	$(TB_DIR)/memory/memory_tb.sv
+
+REGFILE_TB_FILES = \
+	$(TB_DIR)/regfile/regfile_if.sv \
+	$(TB_DIR)/regfile/regfile_item.sv \
+	$(TB_DIR)/regfile/regfile_driver.sv \
+	$(TB_DIR)/regfile/regfile_scoreboard.sv \
+	$(TB_DIR)/regfile/regfile_monitor.sv \
+	$(TB_DIR)/regfile/regfile_coverage.sv \
+	$(TB_DIR)/regfile/regfile_sva.sv \
+	$(TB_DIR)/regfile/regfile_tb.sv
+
 build-%: $(SRC_DIR)/%.sv $(TB_DIR)/%_tb.sv
-		verilator --binary $(SRC_DIR)/$*.sv $(TB_DIR)/$*_tb.sv --top $*_tb -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND
-	mkdir -p $(BUILD_DIR)/$*       # create per-testbench folder if needed
-	mv obj_dir $(BUILD_DIR)/$*/obj_dir
+	mkdir -p $(BUILD_DIR)/$*/obj_dir
+	$(VERILATOR) --binary $(SRC_DIR)/$*.sv $(TB_DIR)/$*_tb.sv --top $*_tb \
+		--Mdir $(BUILD_DIR)/$*/obj_dir $(VERILATOR_FLAGS)
 
 build-%-cov: $(SRC_DIR)/%.sv $(TB_DIR)/%_tb.sv
-	mkdir -p $(BUILD_DIR)/$*
-	verilator --binary --coverage $(SRC_DIR)/$*.sv $(TB_DIR)/$*_tb.sv --top $*_tb \
-		--Mdir $(BUILD_DIR)/$*/obj_dir_cov -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND
+	mkdir -p $(BUILD_DIR)/$*/obj_dir_cov
+	$(VERILATOR) --binary $(COVERAGE_FLAGS) $(SRC_DIR)/$*.sv $(TB_DIR)/$*_tb.sv --top $*_tb \
+		--Mdir $(BUILD_DIR)/$*/obj_dir_cov $(VERILATOR_FLAGS)
 
-run-%-cov:
-	./$(BUILD_DIR)/$*/obj_dir_cov/V$*_tb +verilator+coverage+file+$(BUILD_DIR)/$*/coverage.dat
+build-memory: $(SRC_DIR)/memory.sv $(MEMORY_TB_FILES)
+	mkdir -p $(BUILD_DIR)/memory/obj_dir
+	$(VERILATOR) --binary $(SRC_DIR)/memory.sv $(MEMORY_TB_FILES) --top memory_tb \
+		--Mdir $(BUILD_DIR)/memory/obj_dir $(VERILATOR_FLAGS)
+
+build-memory-cov: $(SRC_DIR)/memory.sv $(MEMORY_TB_FILES)
+	mkdir -p $(BUILD_DIR)/memory/obj_dir_cov
+	$(VERILATOR) --binary $(COVERAGE_FLAGS) $(SRC_DIR)/memory.sv $(MEMORY_TB_FILES) --top memory_tb \
+		--Mdir $(BUILD_DIR)/memory/obj_dir_cov $(VERILATOR_FLAGS)
+
+build-regfile: $(SRC_DIR)/regfile.sv $(REGFILE_TB_FILES)
+	mkdir -p $(BUILD_DIR)/regfile/obj_dir
+	$(VERILATOR) --binary $(SRC_DIR)/regfile.sv $(REGFILE_TB_FILES) --top regfile_tb \
+		--Mdir $(BUILD_DIR)/regfile/obj_dir $(VERILATOR_FLAGS)
+
+build-regfile-cov: $(SRC_DIR)/regfile.sv $(REGFILE_TB_FILES)
+	mkdir -p $(BUILD_DIR)/regfile/obj_dir_cov
+	$(VERILATOR) --binary $(COVERAGE_FLAGS) $(SRC_DIR)/regfile.sv $(REGFILE_TB_FILES) --top regfile_tb \
+		--Mdir $(BUILD_DIR)/regfile/obj_dir_cov $(VERILATOR_FLAGS)
+
+run-%-cov: build-%-cov
+	./$(BUILD_DIR)/$*/obj_dir_cov/V$*_tb +verilator+coverage+file+$(BUILD_DIR)/$*/coverage.dat $(ARGS)
 
 report-%-cov:
 	verilator_coverage --report summary,hier $(BUILD_DIR)/$*/coverage.dat
 
 # Run a testbench: binary is inside obj_dir
-run-%:
+run-%: build-%
 	./$(BUILD_DIR)/$*/obj_dir/V$*_tb $(ARGS)
 	
 
 # ---- Special build for CPU (needs all src/*.sv modules) ----
 build-for-cpu:
 	mkdir -p $(BUILD_DIR)/cpu/obj_dir
-	verilator --binary $(wildcard $(SRC_DIR)/*.sv) $(TB_DIR)/cpu_tb.sv --top cpu_tb \
-		--Mdir $(BUILD_DIR)/cpu/obj_dir -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND
+	$(VERILATOR) --binary $(wildcard $(SRC_DIR)/*.sv) $(TB_DIR)/cpu_tb.sv --top cpu_tb \
+		--Mdir $(BUILD_DIR)/cpu/obj_dir $(VERILATOR_FLAGS)
 
 run-for-cpu:
 	./$(BUILD_DIR)/cpu/obj_dir/Vcpu_tb $(ARGS)
 
 
-# Build all testbenches
-all: $(TBS:%=build-%)
+# Build all leaf testbenches. CPU uses build-for-cpu because it needs all RTL.
+all: $(LEAF_TBS:%=build-%)
 
 clean-%:
 	rm -rf $(BUILD_DIR)/$*
@@ -50,7 +95,7 @@ clean:
 	rm -rf $(BUILD_DIR)/*
 	rm -f *.hex *.elf *.bin
 
-.PHONY: all clean run-% build-% build-%-cov run-%-cov report-%-cov assemble
+.PHONY: all clean clean-% run-% build-% build-%-cov run-%-cov report-%-cov build-for-cpu run-for-cpu assemble
 
 # ---- Assembler Helper ----
 # Compile RISC-V assembly (.s) to hex memory file (.hex)
