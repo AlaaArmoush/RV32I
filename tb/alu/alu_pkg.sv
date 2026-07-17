@@ -94,4 +94,24 @@ package alu_pkg;
       default:     return "UNKNOWN";
     endcase
   endfunction
+
+  // Corner operand values used by the generator
+  localparam logic [31:0] CORNERS[5] = '{
+    32'h0000_0000,
+    32'h0000_0001,
+    32'hFFFF_FFFF,
+    32'h8000_0000,
+    32'h7FFF_FFFF
+  };
+
+  localparam logic [4:0] SHAMTS[4] = '{5'd0, 5'd1, 5'd15, 5'd31};
+
+  localparam alu_op_t ALL_OPS[11] = '{
+    ALU_ADD, ALU_SUB, ALU_AND, ALU_OR,  ALU_SLL,
+    ALU_SLT, ALU_SRL, ALU_SLTU, ALU_XOR, ALU_SRA,
+    ALU_INVALID
+  };
+
+  localparam alu_op_t SHIFT_OPS[3] = '{ALU_SLL, ALU_SRL, ALU_SRA};
+  localparam alu_op_t CMP_OPS[2]   = '{ALU_SLT, ALU_SLTU};
 endpackage
