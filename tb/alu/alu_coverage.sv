@@ -1,5 +1,5 @@
-`ifndef ALU_COVERAGE_SUV
-`define ALU_COVERAGE_SUV
+`ifndef ALU_COVERAGE_SV
+`define ALU_COVERAGE_SV
 
 import alu_pkg::*;
 
@@ -45,18 +45,11 @@ class alu_coverage;
 
     cx_op_result: cross cp_op, cp_result;
 
-    cx_shift_shamt: cross cp_op, cp_shamt{
-      ignore_bins non_shift = binsof (cp_op) intersect {
-        ALU_ADD, ALU_SUB, ALU_AND, ALU_OR, ALU_SLT, ALU_SLTU, ALU_XOR, ALU_INVALID
-      };
-    }
+    cp_is_shift: coverpoint (op inside {ALU_SLL, ALU_SRL, ALU_SRA});
+    cp_is_cmp:   coverpoint (op inside {ALU_SLT, ALU_SLTU});
 
-    // Cross: compare op x signed relationship between operands
-    cx_cmp_rel: cross cp_op, cp_cmp_rel{
-      ignore_bins non_cmp = binsof (cp_op) intersect {
-        ALU_ADD, ALU_SUB, ALU_AND, ALU_OR, ALU_SLL, ALU_SRL, ALU_SRA, ALU_XOR, ALU_INVALID
-      };
-    }
+    cx_shift_shamt: cross cp_is_shift, cp_shamt;
+    cx_cmp_rel:    cross cp_is_cmp,    cp_cmp_rel;
   endgroup
 
   function new();
