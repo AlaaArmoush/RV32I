@@ -32,7 +32,9 @@ class alu_generator;
 
     foreach (CORNERS[i]) begin
       foreach (SHAMTS[j]) begin
-        items.push_back(make_item(CORNERS[i], 32'd0, SHAMTS[j], SHIFT_OPS[k]));
+        for (int k = 0; k < $size(SHIFT_OPS); k++) begin
+          items.push_back(make_item(CORNERS[i], 32'd0, SHAMTS[j], SHIFT_OPS[k]));
+        end
       end
     end
 
