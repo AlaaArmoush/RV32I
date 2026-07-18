@@ -53,14 +53,14 @@ class alu_item;
     };
   }
 
-  opr_class_e src1_class;
-  opr_class_e src1_class;
+  opr_class_e   src1_class;
+  opr_class_e   src2_class;
   shamt_class_e shamt_class;
-  res_class_e res_class;
+  res_class_e   result_class;
 
-  function void classify_stimulus ();
-    src1_class = classify_opr(src1);
-    src1_class = classify_opr(src2);
+  function void classify_stimulus();
+    src1_class  = classify_opr(src1);
+    src2_class  = classify_opr(src2);
     shamt_class = classify_shamt(shamt);
   endfunction
 
