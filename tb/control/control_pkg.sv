@@ -43,6 +43,70 @@ package control_pkg;
   localparam logic [2:0] IMM_J = 3'b011;
   localparam logic [2:0] IMM_U = 3'b100;
 
+  typedef enum logic [1:0] {
+    ENCODING_LEGAL,
+    ENCODING_ILLEGAL,
+    ENCODING_UNSUPPORTED
+  } encoding_class_e;
+
+  function automatic bit is_supported_opcode(input logic [6:0] op_code);
+    return op_code inside {
+      OP_LOAD,
+      OP_IALU,
+      OP_STORE,
+      OP_RALU,
+      OP_LUI,
+      OP_BRANCH,
+      OP_JALR,
+      OP_JAL,
+      OP_AUIPC
+    };
+  endfunction
+
+  function automatic bit is_legal_encoding(input logic [6:0] op_code, input logic [2:0] func3,
+                                           input logic [6:0] func7);
+    case (op_code)
+      OP_LOAD: return func3 inside {3'b000, 3'b001, 3'b010, 3'b100, 3'b101};
+
+      OP_STORE: return func3 inside {3'b000, 3'b001, 3'b010};
+
+      OP_BRANCH: return func3 inside {3'b000, 3'b001, 3'b100, 3'b101, 3'b110, 3'b111};
+
+      OP_JALR: return func3 == 3'b000;
+
+      OP_RALU: begin
+        case (func3)
+          3'b000, 3'b101: return func7 inside {7'b0000000, 7'b0100000};
+
+          default: return func7 == 7'b0000000;
+        endcase
+      end
+
+      OP_IALU: begin
+        case (func3)
+          3'b001: return func7 == 7'b0000000;
+
+          3'b101: return func7 inside {7'b0000000, 7'b0100000};
+
+          default: return 1'b1;
+        endcase
+      end
+
+      OP_LUI, OP_AUIPC, OP_JAL: return 1'b1;
+
+      default: return 1'b0;
+    endcase
+  endfunction
+
+  function automatic encoding_class_e classify_encoding(
+      input logic [6:0] op_code, input logic [2:0] func3, input logic [6:0] func7);
+    if (!is_supported_opcode(op_code)) return ENCODING_UNSUPPORTED;
+
+    if (!is_legal_encoding(op_code, func3, func7)) return ENCODING_ILLEGAL;
+
+    return ENCODING_LEGAL;
+  endfunction
+
   // golden module
   function automatic control_expected_t golden_decode(
       input logic [6:0] op_code, input logic [2:0] func3, input logic [6:0] func7, input logic zero,
